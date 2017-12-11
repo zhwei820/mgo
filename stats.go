@@ -92,6 +92,8 @@ type Stats struct {
 	TotalPoolWaitTime   time.Duration
 	PoolTimeouts        int
 
+	Pingers int
+
 	ServerCreates    int
 	ServerCloses     int
 	ServerCloseIdles int
@@ -242,5 +244,22 @@ func (stats *Stats) SocketClosedIdle() {
 	}
 	statsMutex.Lock()
 	stats.SocketCloseIdles += 1
+	statsMutex.Unlock()
+}
+
+func (stats *Stats) PingerCreated() {
+	stats.pinger(1)
+}
+
+func (stats *Stats) PingerExited() {
+	stats.pinger(-1)
+}
+
+func (stats *Stats) pinger(delta int) {
+	if stats == nil {
+		return
+	}
+	statsMutex.Lock()
+	stats.Pingers += delta
 	statsMutex.Unlock()
 }

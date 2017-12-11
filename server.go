@@ -434,6 +434,9 @@ NextTagSet:
 var pingDelay = 15 * time.Second
 
 func (server *mongoServer) pinger(loop bool) {
+	stats.PingerCreated()
+	defer stats.PingerExited()
+
 	var delay time.Duration
 	if raceDetector {
 		// This variable is only ever touched by tests.
