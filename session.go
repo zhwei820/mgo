@@ -271,6 +271,16 @@ const (
 //        Defines the per-server socket pool limit. Defaults to 4096.
 //        See Session.SetPoolLimit for details.
 //
+//     minPoolSize=<limit>
+//
+//        Defines the per-server socket pool minium size. Defaults to 0.
+//
+//     maxIdleTimeMS=<millisecond>
+//
+//        The maximum number of milliseconds that a connection can remain idle in the pool
+//        before being removed and closed. If maxIdleTimeMS is 0, connections will never be
+//        closed due to inactivity.
+//
 //     appName=<appName>
 //
 //        The identifier of this client application. This parameter is used to
@@ -322,6 +332,8 @@ func ParseURL(url string) (*DialInfo, error) {
 	appName := ""
 	readPreferenceMode := Primary
 	var readPreferenceTagSets []bson.D
+	minPoolSize := 0
+	maxIdleTimeMS := 0
 	for _, opt := range uinfo.options {
 		switch opt.key {
 		case "authSource":
@@ -368,6 +380,22 @@ func ParseURL(url string) (*DialInfo, error) {
 				doc = append(doc, bson.DocElem{Name: strings.TrimSpace(kvp[0]), Value: strings.TrimSpace(kvp[1])})
 			}
 			readPreferenceTagSets = append(readPreferenceTagSets, doc)
+		case "minPoolSize":
+			minPoolSize, err = strconv.Atoi(opt.value)
+			if err != nil {
+				return nil, errors.New("bad value for minPoolSize: " + opt.value)
+			}
+			if minPoolSize < 0 {
+				return nil, errors.New("bad value (negtive) for minPoolSize: " + opt.value)
+			}
+		case "maxIdleTimeMS":
+			maxIdleTimeMS, err = strconv.Atoi(opt.value)
+			if err != nil {
+				return nil, errors.New("bad value for maxIdleTimeMS: " + opt.value)
+			}
+			if maxIdleTimeMS < 0 {
+				return nil, errors.New("bad value (negtive) for maxIdleTimeMS: " + opt.value)
+			}
 		case "connect":
 			if opt.value == "direct" {
 				direct = true
@@ -402,6 +430,8 @@ func ParseURL(url string) (*DialInfo, error) {
 			TagSets: readPreferenceTagSets,
 		},
 		ReplicaSetName: setName,
+		MinPoolSize:    minPoolSize,
+		MaxIdleTimeMS:  maxIdleTimeMS,
 	}
 	return &info, nil
 }
@@ -474,6 +504,14 @@ type DialInfo struct {
 	// specified seed servers, or to obtain information for the whole
 	// cluster and establish connections with further servers too.
 	Direct bool
+
+	// MinPoolSize defines The minimum number of connections in the connection pool.
+	// Defaults to 0.
+	MinPoolSize int
+
+	//The maximum number of milliseconds that a connection can remain idle in the pool
+	// before being removed and closed.
+	MaxIdleTimeMS int
 
 	// DialServer optionally specifies the dial function for establishing
 	// connections with the MongoDB servers.
@@ -554,6 +592,10 @@ func DialWithInfo(info *DialInfo) (*Session, error) {
 	if info.PoolLimit > 0 {
 		session.poolLimit = info.PoolLimit
 	}
+
+	cluster.minPoolSize = info.MinPoolSize
+	cluster.maxIdleTimeMS = info.MaxIdleTimeMS
+
 	cluster.Release()
 
 	// People get confused when we return a session that is not actually
