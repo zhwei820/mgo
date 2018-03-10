@@ -848,6 +848,15 @@ func (db *Database) Run(cmd interface{}, result interface{}) error {
 	return db.run(socket, cmd, result)
 }
 
+// RunOnSocket does the same as Run, but guarantees that your command will be run
+// on the provided socket instance; if it's unhealthy, you will receive the error
+// from it.
+func (db *Database) RunOnSocket(socket *mongoSocket, cmd interface{}, result interface{}) error {
+	socket.Acquire()
+	defer socket.Release()
+	return db.run(socket, cmd, result)
+}
+
 // Credential holds details to authenticate with a MongoDB server.
 type Credential struct {
 	// Username and Password hold the basic details for authentication.
@@ -2310,6 +2319,13 @@ func (s *Session) ensureSafe(safe *Safe) {
 //
 func (s *Session) Run(cmd interface{}, result interface{}) error {
 	return s.DB("admin").Run(cmd, result)
+}
+
+// RunOnSocket does the same as Run, but guarantees that your command will be run
+// on the provided socket instance; if it's unhealthy, you will receive the error
+// from it.
+func (s *Session) RunOnSocket(socket *mongoSocket, cmd interface{}, result interface{}) error {
+	return s.DB("admin").RunOnSocket(socket, cmd, result)
 }
 
 // SelectServers restricts communication to servers configured with the
