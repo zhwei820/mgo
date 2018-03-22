@@ -181,7 +181,7 @@ func (cluster *mongoCluster) isMaster(socket *mongoSocket, result *isMasterResul
 		})
 	})
 
-	err := session.Run(cmd, result)
+	err := session.runOnSocket(socket, cmd, result)
 	session.Close()
 	return err
 }
