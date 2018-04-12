@@ -45,6 +45,7 @@ A [sub-package](https://godoc.org/github.com/globalsign/mgo/bson) that implement
 * Gracefully recover from a temporarily unreachable server ([details](https://github.com/globalsign/mgo/pull/69))
 * Use JSON tags when no explicit BSON are tags set ([details](https://github.com/globalsign/mgo/pull/91))
 * Support [$changeStream](https://docs.mongodb.com/manual/changeStreams/) tailing on 3.6+ ([details](https://github.com/globalsign/mgo/pull/97))
+* Fix deadlock in cluster synchronisation ([details](https://github.com/globalsign/mgo/issues/120))
 
 ---
 
@@ -55,11 +56,13 @@ A [sub-package](https://godoc.org/github.com/globalsign/mgo/bson) that implement
 * @carter2000
 * @cezarsa
 * @drichelson
+* @dvic
 * @eaglerayp
 * @feliixx
 * @fmpwizard
 * @idy
 * @jameinel
+* @KJTsanaktsidis
 * @gazoon
 * @mapete94
 * @peterdeka
