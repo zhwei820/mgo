@@ -3,9 +3,6 @@
 The MongoDB driver for Go
 -------------------------
 
-This is the "official", maintained fork of `mgo` (pronounced as "mango").
-We are grateful for the great work that @niemeyer and the mgo contributors have made over the years.
-
 This fork has had a few improvements by ourselves as well as several PR's merged from the original mgo repo that are currently awaiting review.
 Changes are mostly geared towards performance improvements and bug fixes, though a few new features have been added.
 
@@ -14,7 +11,7 @@ Further PR's (with tests) are welcome, but please maintain backwards compatibili
 Detailed documentation of the API is available at
 [GoDoc](https://godoc.org/github.com/globalsign/mgo).
 
-A [sub-package](https://godoc.org/github.com/globalsign/mgo/bson) that implements [BSON](http://bsonspec.org) is also included, and may be used independently of the driver.
+A [sub-package](https://godoc.org/github.com/globalsign/mgo/bson) that implements the [BSON](http://bsonspec.org) specification is also included, and may be used independently of the driver.
 
 ## Changes
 * Fixes attempting to authenticate before every query ([details](https://github.com/go-mgo/mgo/issues/254))
