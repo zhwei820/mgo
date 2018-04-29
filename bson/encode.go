@@ -229,6 +229,12 @@ func (e *encoder) addStruct(v reflect.Value) {
 		if info.Inline == nil {
 			value = v.Field(info.Num)
 		} else {
+			// as pointers to struct are allowed here,
+			// there is no guarantee that pointer won't be nil.
+			//
+			// It is expected allowed behaviour
+			// so info.Inline MAY consist index to a nil pointer
+			// and that is why we safely call v.FieldByIndex and just continue on panic
 			field, errField := safeFieldByIndex(v, info.Inline)
 			if errField != nil {
 				continue

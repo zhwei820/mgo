@@ -748,8 +748,8 @@ func getStructInfo(st reflect.Type) (*structInfo, error) {
 				inlineMap = info.Num
 			case reflect.Ptr:
 				// allow only pointer to struct
-				if field.Type.Elem().Kind() != reflect.Struct {
-					break
+				if kind := field.Type.Elem().Kind(); kind != reflect.Struct {
+					return nil, errors.New("Option ,inline allows a pointer only to a struct, was given pointer to " + kind.String())
 				}
 
 				field.Type = field.Type.Elem()
@@ -773,7 +773,7 @@ func getStructInfo(st reflect.Type) (*structInfo, error) {
 					fieldsList = append(fieldsList, finfo)
 				}
 			default:
-				panic("Option ,inline needs a struct value or map field")
+				panic("Option ,inline needs a struct value or a pointer to a struct or map field")
 			}
 			continue
 		}
