@@ -245,6 +245,12 @@ func (e *encoder) addStruct(v reflect.Value) {
 		if info.OmitEmpty && isZero(value) {
 			continue
 		}
+		if useRespectNilValues &&
+			(value.Kind() == reflect.Slice || value.Kind() == reflect.Map) &&
+			value.IsNil() {
+			e.addElem(info.Key, reflect.ValueOf(nil), info.MinSize)
+			continue
+		}
 		e.addElem(info.Key, value, info.MinSize)
 	}
 }
