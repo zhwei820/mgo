@@ -73,6 +73,14 @@ const (
 	Monotonic Mode = 1
 	// Strong mode is specific to mgo, and is same as Primary.
 	Strong Mode = 2
+
+	// DefaultConnectionPoolLimit defines the default maximum number of
+	// connections in the connection pool.
+	//
+	// To override this value set DialInfo.PoolLimit.
+	DefaultConnectionPoolLimit = 4096
+
+	zeroDuration = time.Duration(0)
 )
 
 // mgo.v3: Drop Strong mode, suffix all modes with "Mode".
@@ -90,9 +98,6 @@ type Session struct {
 	defaultdb        string
 	sourcedb         string
 	syncTimeout      time.Duration
-	sockTimeout      time.Duration
-	poolLimit        int
-	poolTimeout      time.Duration
 	consistency      Mode
 	creds            []Credential
 	dialCred         *Credential
@@ -104,6 +109,8 @@ type Session struct {
 	queryConfig      query
 	bypassValidation bool
 	slaveOk          bool
+
+	dialInfo *DialInfo
 }
 
 // Database holds collections of documents
@@ -196,7 +203,7 @@ const (
 // Dial will timeout after 10 seconds if a server isn't reached. The returned
 // session will timeout operations after one minute by default if servers aren't
 // available. To customize the timeout, see DialWithTimeout, SetSyncTimeout, and
-// SetSocketTimeout.
+// DialInfo Read/WriteTimeout.
 //
 // This method is generally called just once for a given cluster.  Further
 // sessions to the same cluster are then established using the New or Copy
@@ -483,14 +490,37 @@ type DialInfo struct {
 	Username string
 	Password string
 
-	// PoolLimit defines the per-server socket pool limit. Defaults to 4096.
-	// See Session.SetPoolLimit for details.
+	// PoolLimit defines the per-server socket pool limit. Defaults to
+	// DefaultConnectionPoolLimit. See Session.SetPoolLimit for details.
 	PoolLimit int
 
 	// PoolTimeout defines max time to wait for a connection to become available
-	// if the pool limit is reaqched. Defaults to zero, which means forever.
-	// See Session.SetPoolTimeout for details
+	// if the pool limit is reached. Defaults to zero, which means forever. See
+	// Session.SetPoolTimeout for details
 	PoolTimeout time.Duration
+
+	// ReadTimeout defines the maximum duration to wait for a response to be
+	// read from MongoDB.
+	//
+	// This effectively limits the maximum query execution time. If a MongoDB
+	// query duration exceeds this timeout, the caller will receive a timeout,
+	// however MongoDB will continue processing the query. This duration must be
+	// large enough to allow MongoDB to execute the query, and the response be
+	// received over the network connection.
+	//
+	// Only limits the network read - does not include unmarshalling /
+	// processing of the response. Defaults to DialInfo.Timeout. If 0, no
+	// timeout is set.
+	ReadTimeout time.Duration
+
+	// WriteTimeout defines the maximum duration of a write to MongoDB over the
+	// network connection.
+	//
+	// This is can usually be low unless writing large documents, or over a high
+	// latency link. Only limits network write time - does not include
+	// marshalling/processing the request. Defaults to DialInfo.Timeout. If 0,
+	// no timeout is set.
+	WriteTimeout time.Duration
 
 	// The identifier of the client application which ran the operation.
 	AppName string
@@ -515,7 +545,7 @@ type DialInfo struct {
 	// Defaults to 0.
 	MinPoolSize int
 
-	//The maximum number of milliseconds that a connection can remain idle in the pool
+	// The maximum number of milliseconds that a connection can remain idle in the pool
 	// before being removed and closed.
 	MaxIdleTimeMS int
 
@@ -525,6 +555,79 @@ type DialInfo struct {
 
 	// WARNING: This field is obsolete. See DialServer above.
 	Dial func(addr net.Addr) (net.Conn, error)
+}
+
+// Copy returns a deep-copy of i.
+func (i *DialInfo) Copy() *DialInfo {
+	var readPreference *ReadPreference
+	if i.ReadPreference != nil {
+		readPreference = &ReadPreference{
+			Mode: i.ReadPreference.Mode,
+		}
+		readPreference.TagSets = make([]bson.D, len(i.ReadPreference.TagSets))
+		copy(readPreference.TagSets, i.ReadPreference.TagSets)
+	}
+
+	info := &DialInfo{
+		Timeout:        i.Timeout,
+		Database:       i.Database,
+		ReplicaSetName: i.ReplicaSetName,
+		Source:         i.Source,
+		Service:        i.Service,
+		ServiceHost:    i.ServiceHost,
+		Mechanism:      i.Mechanism,
+		Username:       i.Username,
+		Password:       i.Password,
+		PoolLimit:      i.PoolLimit,
+		PoolTimeout:    i.PoolTimeout,
+		ReadTimeout:    i.ReadTimeout,
+		WriteTimeout:   i.WriteTimeout,
+		AppName:        i.AppName,
+		ReadPreference: readPreference,
+		FailFast:       i.FailFast,
+		Direct:         i.Direct,
+		MinPoolSize:    i.MinPoolSize,
+		MaxIdleTimeMS:  i.MaxIdleTimeMS,
+		DialServer:     i.DialServer,
+		Dial:           i.Dial,
+	}
+
+	info.Addrs = make([]string, len(i.Addrs))
+	copy(info.Addrs, i.Addrs)
+
+	return info
+}
+
+// readTimeout returns the configured read timeout, or i.Timeout if it's not set
+func (i *DialInfo) readTimeout() time.Duration {
+	if i.ReadTimeout == zeroDuration {
+		return i.Timeout
+	}
+	return i.ReadTimeout
+}
+
+// writeTimeout returns the configured write timeout, or i.Timeout if it's not
+// set
+func (i *DialInfo) writeTimeout() time.Duration {
+	if i.WriteTimeout == zeroDuration {
+		return i.Timeout
+	}
+	return i.WriteTimeout
+}
+
+// roundTripTimeout returns the total time allocated for a single network read
+// and write.
+func (i *DialInfo) roundTripTimeout() time.Duration {
+	return i.readTimeout() + i.writeTimeout()
+}
+
+// poolLimit returns the configured connection pool size, or
+// DefaultConnectionPoolLimit.
+func (i *DialInfo) poolLimit() int {
+	if i.PoolLimit == 0 {
+		return DefaultConnectionPoolLimit
+	}
+	return i.PoolLimit
 }
 
 // ReadPreference defines the manner in which servers are chosen.
@@ -556,7 +659,12 @@ func (addr *ServerAddr) TCPAddr() *net.TCPAddr {
 }
 
 // DialWithInfo establishes a new session to the cluster identified by info.
-func DialWithInfo(info *DialInfo) (*Session, error) {
+func DialWithInfo(dialInfo *DialInfo) (*Session, error) {
+	info := dialInfo.Copy()
+	info.PoolLimit = info.poolLimit()
+	info.ReadTimeout = info.readTimeout()
+	info.WriteTimeout = info.writeTimeout()
+
 	addrs := make([]string, len(info.Addrs))
 	for i, addr := range info.Addrs {
 		p := strings.LastIndexAny(addr, "]:")
@@ -566,8 +674,8 @@ func DialWithInfo(info *DialInfo) (*Session, error) {
 		}
 		addrs[i] = addr
 	}
-	cluster := newCluster(addrs, info.Direct, info.FailFast, dialer{info.Dial, info.DialServer}, info.ReplicaSetName, info.AppName)
-	session := newSession(Eventual, cluster, info.Timeout)
+	cluster := newCluster(addrs, info)
+	session := newSession(Eventual, cluster, info)
 	session.defaultdb = info.Database
 	if session.defaultdb == "" {
 		session.defaultdb = "test"
@@ -595,16 +703,6 @@ func DialWithInfo(info *DialInfo) (*Session, error) {
 		}
 		session.creds = []Credential{*session.dialCred}
 	}
-	if info.PoolLimit > 0 {
-		session.poolLimit = info.PoolLimit
-	}
-
-	cluster.minPoolSize = info.MinPoolSize
-	cluster.maxIdleTimeMS = info.MaxIdleTimeMS
-
-	if info.PoolTimeout > 0 {
-		session.poolTimeout = info.PoolTimeout
-	}
 
 	cluster.Release()
 
@@ -623,6 +721,8 @@ func DialWithInfo(info *DialInfo) (*Session, error) {
 	} else {
 		session.SetMode(Strong, true)
 	}
+
+	session.dialInfo = info
 
 	return session, nil
 }
@@ -684,13 +784,12 @@ func extractURL(s string) (*urlInfo, error) {
 	return info, nil
 }
 
-func newSession(consistency Mode, cluster *mongoCluster, timeout time.Duration) (session *Session) {
+func newSession(consistency Mode, cluster *mongoCluster, info *DialInfo) (session *Session) {
 	cluster.Acquire()
 	session = &Session{
 		mgoCluster:  cluster,
-		syncTimeout: timeout,
-		sockTimeout: timeout,
-		poolLimit:   4096,
+		syncTimeout: info.Timeout,
+		dialInfo:    info,
 	}
 	debugf("New session %p on cluster %p", session, cluster)
 	session.SetMode(consistency, true)
@@ -719,9 +818,6 @@ func copySession(session *Session, keepCreds bool) (s *Session) {
 		defaultdb:        session.defaultdb,
 		sourcedb:         session.sourcedb,
 		syncTimeout:      session.syncTimeout,
-		sockTimeout:      session.sockTimeout,
-		poolLimit:        session.poolLimit,
-		poolTimeout:      session.poolTimeout,
 		consistency:      session.consistency,
 		creds:            creds,
 		dialCred:         session.dialCred,
@@ -733,6 +829,7 @@ func copySession(session *Session, keepCreds bool) (s *Session) {
 		queryConfig:      session.queryConfig,
 		bypassValidation: session.bypassValidation,
 		slaveOk:          session.slaveOk,
+		dialInfo:         session.dialInfo,
 	}
 	s = &scopy
 	debugf("New session %p on cluster %p (copy from %p)", s, cluster, session)
@@ -2018,13 +2115,21 @@ func (s *Session) SetSyncTimeout(d time.Duration) {
 	s.m.Unlock()
 }
 
-// SetSocketTimeout sets the amount of time to wait for a non-responding
-// socket to the database before it is forcefully closed.
+// SetSocketTimeout is deprecated - use DialInfo read/write timeouts instead.
+//
+// SetSocketTimeout sets the amount of time to wait for a non-responding socket
+// to the database before it is forcefully closed.
 //
 // The default timeout is 1 minute.
 func (s *Session) SetSocketTimeout(d time.Duration) {
 	s.m.Lock()
-	s.sockTimeout = d
+
+	// Set both the read and write timeout, as well as the DialInfo.Timeout for
+	// backwards compatibility,
+	s.dialInfo.Timeout = d
+	s.dialInfo.ReadTimeout = d
+	s.dialInfo.WriteTimeout = d
+
 	if s.masterSocket != nil {
 		s.masterSocket.SetTimeout(d)
 	}
@@ -2058,7 +2163,7 @@ func (s *Session) SetCursorTimeout(d time.Duration) {
 // of used resources and number of goroutines before they are created.
 func (s *Session) SetPoolLimit(limit int) {
 	s.m.Lock()
-	s.poolLimit = limit
+	s.dialInfo.PoolLimit = limit
 	s.m.Unlock()
 }
 
@@ -2068,7 +2173,7 @@ func (s *Session) SetPoolLimit(limit int) {
 // The default value is zero, which means to wait forever with no timeout.
 func (s *Session) SetPoolTimeout(timeout time.Duration) {
 	s.m.Lock()
-	s.poolTimeout = timeout
+	s.dialInfo.PoolTimeout = timeout
 	s.m.Unlock()
 }
 
@@ -4356,11 +4461,13 @@ func (iter *Iter) acquireSocket() (*mongoSocket, error) {
 		// with Eventual sessions, if a Refresh is done, or if a
 		// monotonic session gets a write and shifts from secondary
 		// to primary. Our cursor is in a specific server, though.
+
 		iter.session.m.Lock()
-		sockTimeout := iter.session.sockTimeout
+		info := iter.session.dialInfo
 		iter.session.m.Unlock()
+
 		socket.Release()
-		socket, _, err = iter.server.AcquireSocket(0, sockTimeout)
+		socket, _, err = iter.server.AcquireSocket(info)
 		if err != nil {
 			return nil, err
 		}
@@ -4950,7 +5057,11 @@ func (s *Session) acquireSocket(slaveOk bool) (*mongoSocket, error) {
 
 	// Still not good.  We need a new socket.
 	sock, err := s.cluster().AcquireSocketWithPoolTimeout(
-		s.consistency, slaveOk && s.slaveOk, s.syncTimeout, s.sockTimeout, s.queryConfig.op.serverTags, s.poolLimit, s.poolTimeout,
+		s.consistency,
+		slaveOk && s.slaveOk,
+		s.syncTimeout,
+		s.queryConfig.op.serverTags,
+		s.dialInfo,
 	)
 	if err != nil {
 		return nil, err
