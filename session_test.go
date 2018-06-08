@@ -1370,6 +1370,37 @@ func (s *S) TestFindAndModify(c *C) {
 	c.Assert(info, IsNil)
 }
 
+func (s *S) TestFindAndModifyWriteConcern(c *C) {
+	session, err := mgo.Dial("localhost:40011")
+	c.Assert(err, IsNil)
+	defer session.Close()
+
+	coll := session.DB("mydb").C("mycoll")
+	err = coll.Insert(M{"id": 42})
+	c.Assert(err, IsNil)
+
+	// Tweak the safety parameters to something unachievable.
+	session.SetSafe(&mgo.Safe{W: 4, WTimeout: 100})
+
+	var ret struct {
+		Id uint64 `bson:"id"`
+	}
+
+	change := mgo.Change{
+		Update:    M{"$inc": M{"id": 8}},
+		ReturnNew: false,
+	}
+	info, err := coll.Find(M{"id": M{"$exists": true}}).Apply(change, &ret)
+	c.Assert(info.Updated, Equals, 1)
+	c.Assert(info.Matched, Equals, 1)
+	c.Assert(ret.Id, Equals, uint64(42))
+
+	if s.versionAtLeast(3, 2) {
+		// findAndModify support writeConcern after version 3.2.
+		c.Assert(err, ErrorMatches, "timeout|timed out waiting for slaves|Not enough data-bearing nodes|waiting for replication timed out")
+	}
+}
+
 func (s *S) TestFindAndModifyBug997828(c *C) {
 	session, err := mgo.Dial("localhost:40001")
 	c.Assert(err, IsNil)
