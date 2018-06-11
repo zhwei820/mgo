@@ -87,6 +87,15 @@ func (s *S) TestPing(c *C) {
 	c.Assert(stats.ReceivedOps, Equals, 1)
 }
 
+func (s *S) TestPingSsl(c *C) {
+	c.Skip("this test requires the usage of the system provided certificates")
+	session, err := mgo.Dial("localhost:40001?ssl=true")
+	c.Assert(err, IsNil)
+	defer session.Close()
+
+	c.Assert(session.Ping(), IsNil)
+}
+
 func (s *S) TestDialIPAddress(c *C) {
 	session, err := mgo.Dial("127.0.0.1:40001")
 	c.Assert(err, IsNil)
@@ -132,6 +141,25 @@ func (s *S) TestURLParsing(c *C) {
 			session.Close()
 		}
 		c.Assert(err, ErrorMatches, "unsupported connection URL option: (foo=1|bar=2)")
+	}
+}
+
+func (s *S) TestURLSsl(c *C) {
+	type test struct {
+		url           string
+		nilDialServer bool
+	}
+
+	tests := []test{
+		{"localhost:40001", true},
+		{"localhost:40001?ssl=false", true},
+		{"localhost:40001?ssl=true", false},
+	}
+
+	for _, test := range tests {
+		info, err := mgo.ParseURL(test.url)
+		c.Assert(err, IsNil)
+		c.Assert(info.DialServer == nil, Equals, test.nilDialServer)
 	}
 }
 
