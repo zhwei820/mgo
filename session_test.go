@@ -233,6 +233,27 @@ func (s *S) TestURLInvalidSafe(c *C) {
 	}
 }
 
+func (s *S) TestURLUnixSocket(c *C) {
+	type test struct {
+		url      string
+		socket   string
+		database string
+	}
+
+	tests := []test{
+		{"%2Fvar%2Frun%2Fmongodb%2Fmongod.sock", "/var/run/mongodb/mongod.sock", ""},
+		{"%2Fvar%2Frun%2Fmongodb%2Fmongod.sock/testing", "/var/run/mongodb/mongod.sock", "testing"},
+	}
+
+	for _, test := range tests {
+		info, err := mgo.ParseURL(test.url)
+		c.Assert(err, IsNil)
+		c.Assert(info.Addrs, NotNil)
+		c.Assert(info.Addrs[0], Equals, test.socket)
+		c.Assert(info.Database, Equals, test.database)
+	}
+}
+
 func (s *S) TestMinPoolSize(c *C) {
 	tests := []struct {
 		url  string
