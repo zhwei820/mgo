@@ -274,38 +274,58 @@ func (s *S) TestMarshalBuffer(c *C) {
 }
 
 func (s *S) TestPtrInline(c *C) {
-	cases := []struct {
-		In  interface{}
-		Out bson.M
-	}{
-		{
-			In:  inlinePtrStruct{A: 1, MStruct: &MStruct{M: 3}},
-			Out: bson.M{"a": 1, "m": 3},
-		},
-		{ // go deeper
-			In:  inlinePtrPtrStruct{B: 10, inlinePtrStruct: &inlinePtrStruct{A: 20, MStruct: &MStruct{M: 30}}},
-			Out: bson.M{"b": 10, "a": 20, "m": 30},
-		},
-		{
-			// nil embed struct
-			In:  &inlinePtrStruct{A: 3},
-			Out: bson.M{"a": 3},
-		},
-		{
-			// nil embed struct
-			In:  &inlinePtrPtrStruct{B: 5},
-			Out: bson.M{"b": 5},
-		},
+
+	// struct with inline pointer
+	{
+		in := InlinePtrStruct{A: 1, MStruct: &MStruct{M: 8}}
+		data, err := bson.Marshal(in)
+		c.Assert(err, IsNil)
+
+		var out InlinePtrStruct
+		err = bson.Unmarshal(data, &out)
+		c.Assert(err, IsNil)
+		c.Assert(out, DeepEquals, in)
 	}
 
-	for _, cs := range cases {
-		data, err := bson.Marshal(cs.In)
-		c.Assert(err, IsNil)
-		var dataBSON bson.M
-		err = bson.Unmarshal(data, &dataBSON)
+	// Deeper struct with inline pointer
+	{
+		in := InlinePtrPtrStruct{B: 10, InlinePtrStruct: &InlinePtrStruct{A: 20, MStruct: &MStruct{M: 30}}}
+		data, err := bson.Marshal(in)
 		c.Assert(err, IsNil)
 
-		c.Assert(dataBSON, DeepEquals, cs.Out)
+		var out InlinePtrPtrStruct
+		err = bson.Unmarshal(data, &out)
+		c.Assert(err, IsNil)
+		c.Assert(out, DeepEquals, in)
+	}
+
+	// Nil embed struct
+	{
+		in := InlinePtrStruct{A: 4}
+		data, err := bson.Marshal(in)
+		c.Assert(err, IsNil)
+
+		out := InlinePtrStruct{}
+		err = bson.Unmarshal(data, &out)
+		c.Assert(err, IsNil)
+
+		c.Assert(out.A, Equals, 4)
+		c.Assert(out.M, Equals, 0)
+	}
+
+	// Nil deeper embed struct
+	{
+		in := InlinePtrPtrStruct{B: 5}
+		data, err := bson.Marshal(in)
+		c.Assert(err, IsNil)
+
+		var out InlinePtrPtrStruct
+		err = bson.Unmarshal(data, &out)
+		c.Assert(err, IsNil)
+
+		c.Assert(out.B, Equals, 5)
+		c.Assert(out.A, Equals, 0)
+		c.Assert(out.M, Equals, 0)
 	}
 }
 
@@ -1210,19 +1230,21 @@ type inlineUnexported struct {
 	M          map[string]interface{} `bson:",inline"`
 	unexported `bson:",inline"`
 }
+type unexported struct {
+	A int
+}
+
+// Structs for `inline pointers` feature
 type MStruct struct {
 	M int `bson:"m,omitempty"`
 }
-type inlinePtrStruct struct {
+type InlinePtrStruct struct {
 	A        int
 	*MStruct `bson:",inline"`
 }
-type inlinePtrPtrStruct struct {
+type InlinePtrPtrStruct struct {
 	B                int
-	*inlinePtrStruct `bson:",inline"`
-}
-type unexported struct {
-	A int
+	*InlinePtrStruct `bson:",inline"`
 }
 
 type getterSetterD bson.D
