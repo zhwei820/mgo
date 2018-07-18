@@ -3063,6 +3063,33 @@ func (c *Collection) UpdateId(id interface{}, update interface{}) error {
 	return c.Update(bson.D{{Name: "_id", Value: id}}, update)
 }
 
+// UpdateWithArrayFilters allows passing an array of filter documents that determines
+// which array elements to modify for an update operation on an array field. The multi parameter
+// determines whether the update should update multiple documents (true) or only one document (false).
+//
+// See example: https://docs.mongodb.com/manual/reference/method/db.collection.update/#update-arrayfiltersi
+//
+// Note this method is only compatible with MongoDB 3.6+.
+func (c *Collection) UpdateWithArrayFilters(selector, update, arrayFilters interface{}, multi bool) (*ChangeInfo, error) {
+	if selector == nil {
+		selector = bson.D{}
+	}
+	op := updateOp{
+		Collection:   c.FullName,
+		Selector:     selector,
+		Update:       update,
+		Flags:        2,
+		Multi:        multi,
+		ArrayFilters: arrayFilters,
+	}
+	lerr, err := c.writeOp(&op, true)
+	var info *ChangeInfo
+	if err == nil && lerr != nil {
+		info = &ChangeInfo{Updated: lerr.modified, Matched: lerr.N}
+	}
+	return info, err
+}
+
 // ChangeInfo holds details about the outcome of an update operation.
 type ChangeInfo struct {
 	// Updated reports the number of existing documents modified.
