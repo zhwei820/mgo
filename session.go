@@ -1199,15 +1199,6 @@ type User struct {
 	// user documents inserted in the admin database. This field
 	// only works in the admin database.
 	OtherDBRoles map[string][]Role `bson:"otherDBRoles,omitempty"`
-
-	// UserSource indicates where to look for this user's credentials.
-	// It may be set to a database name, or to "$external" for
-	// consulting an external resource such as Kerberos. UserSource
-	// must not be set if Password or PasswordHash are present.
-	//
-	// WARNING: This setting was only ever supported in MongoDB 2.4,
-	// and is now obsolete.
-	UserSource string `bson:"userSource,omitempty"`
 }
 
 // Role available role for users
@@ -1261,8 +1252,7 @@ const (
 // a MongoDB user within the db database. If the named user doesn't exist
 // it will be created.
 //
-// This method should only be used from MongoDB 2.4 and on. For older
-// MongoDB releases, use the obsolete AddUser method instead.
+// This method should only be used from MongoDB 2.4 and on.
 //
 // Relevant documentation:
 //
@@ -1273,23 +1263,15 @@ func (db *Database) UpsertUser(user *User) error {
 	if user.Username == "" {
 		return fmt.Errorf("user has no Username")
 	}
-	if (user.Password != "" || user.PasswordHash != "") && user.UserSource != "" {
-		return fmt.Errorf("user has both Password/PasswordHash and UserSource set")
-	}
+
 	if len(user.OtherDBRoles) > 0 && db.Name != "admin" && db.Name != "$external" {
 		return fmt.Errorf("user with OtherDBRoles is only supported in the admin or $external databases")
 	}
 
-	// Attempt to run this using 2.6+ commands.
-	rundb := db
-	if user.UserSource != "" {
-		// Compatibility logic for the userSource field of MongoDB <= 2.4.X
-		rundb = db.Session.DB(user.UserSource)
-	}
-	err := rundb.runUserCmd("updateUser", user)
+	err := db.runUserCmd("updateUser", user)
 	// retry with createUser when isAuthError in order to enable the "localhost exception"
 	if isNotFound(err) || isAuthError(err) {
-		return rundb.runUserCmd("createUser", user)
+		return db.runUserCmd("createUser", user)
 	}
 	if !isNoCmd(err) {
 		return err
@@ -1301,15 +1283,10 @@ func (db *Database) UpsertUser(user *User) error {
 		psum := md5.New()
 		psum.Write([]byte(user.Username + ":mongo:" + user.Password))
 		set = append(set, bson.DocElem{Name: "pwd", Value: hex.EncodeToString(psum.Sum(nil))})
-		unset = append(unset, bson.DocElem{Name: "userSource", Value: 1})
 	} else if user.PasswordHash != "" {
 		set = append(set, bson.DocElem{Name: "pwd", Value: user.PasswordHash})
-		unset = append(unset, bson.DocElem{Name: "userSource", Value: 1})
 	}
-	if user.UserSource != "" {
-		set = append(set, bson.DocElem{Name: "userSource", Value: user.UserSource})
-		unset = append(unset, bson.DocElem{Name: "pwd", Value: 1})
-	}
+
 	if user.Roles != nil || user.OtherDBRoles != nil {
 		set = append(set, bson.DocElem{Name: "roles", Value: user.Roles})
 		if len(user.OtherDBRoles) > 0 {
@@ -1370,49 +1347,8 @@ func (db *Database) runUserCmd(cmdName string, user *User) error {
 	if roles != nil || user.Roles != nil || cmdName == "createUser" {
 		cmd = append(cmd, bson.DocElem{Name: "roles", Value: roles})
 	}
-	err := db.Run(cmd, nil)
-	if !isNoCmd(err) && user.UserSource != "" && (user.UserSource != "$external" || db.Name != "$external") {
-		return fmt.Errorf("MongoDB 2.6+ does not support the UserSource setting")
-	}
-	return err
-}
 
-// AddUser creates or updates the authentication credentials of user within
-// the db database.
-//
-// WARNING: This method is obsolete and should only be used with MongoDB 2.2
-// or earlier. For MongoDB 2.4 and on, use UpsertUser instead.
-func (db *Database) AddUser(username, password string, readOnly bool) error {
-	// Try to emulate the old behavior on 2.6+
-	user := &User{Username: username, Password: password}
-	if db.Name == "admin" {
-		if readOnly {
-			user.Roles = []Role{RoleReadAny}
-		} else {
-			user.Roles = []Role{RoleReadWriteAny}
-		}
-	} else {
-		if readOnly {
-			user.Roles = []Role{RoleRead}
-		} else {
-			user.Roles = []Role{RoleReadWrite}
-		}
-	}
-	err := db.runUserCmd("updateUser", user)
-	if isNotFound(err) {
-		return db.runUserCmd("createUser", user)
-	}
-	if !isNoCmd(err) {
-		return err
-	}
-
-	// Command doesn't exist. Fallback to pre-2.6 behavior.
-	psum := md5.New()
-	psum.Write([]byte(username + ":mongo:" + password))
-	digest := hex.EncodeToString(psum.Sum(nil))
-	c := db.C("system.users")
-	_, err = c.Upsert(bson.M{"user": username}, bson.M{"$set": bson.M{"user": username, "pwd": digest, "readOnly": readOnly}})
-	return err
+	return db.Run(cmd, nil)
 }
 
 // RemoveUser removes the authentication credentials of user from the database.
