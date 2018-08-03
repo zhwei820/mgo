@@ -376,7 +376,7 @@ func (s *S) TestAuthUpsertUserAuthenticationRestrictions(c *C) {
 	denyUser := &mgo.User{
 		Username: "denyUser",
 		Password: "123456",
-		Roles:    []mgo.Role{mgo.RoleRead},
+		Roles:    []mgo.Role{mgo.RoleReadAny},
 		AuthenticationRestrictions: []mgo.AuthenticationRestriction{
 			{
 				ClientSource:  []string{"1.2.3.4"},
