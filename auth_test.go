@@ -355,7 +355,7 @@ func (s *S) TestAuthUpsertUserAuthenticationRestrictions(c *C) {
 	allowUser := &mgo.User{
 		Username: "allowUser",
 		Password: "123456",
-		Roles:    []mgo.Role{mgo.RoleRead},
+		Roles:    []mgo.Role{mgo.RoleReadAny},
 		AuthenticationRestrictions: []mgo.AuthenticationRestriction{
 			{
 				ClientSource:  []string{"127.0.0.1"},
@@ -369,7 +369,7 @@ func (s *S) TestAuthUpsertUserAuthenticationRestrictions(c *C) {
 	// Dial again to ensure the positive authentication restriction allows the connection
 	allowSession, err := mgo.Dial("mongodb://allowUser:123456@127.0.0.1:40002/admin")
 	c.Assert(err, IsNil)
-	c.Assert(allowSession.DB("admin").C("test").Find(nil).All(nil), IsNil)
+	c.Assert(allowSession.Run(bson.D{{"listDatabases", "1"}}, nil), IsNil)
 	defer allowSession.Close()
 
 	// this user should fail authentication restrictions
