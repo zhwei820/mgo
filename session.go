@@ -1168,6 +1168,19 @@ func (s *Session) LogoutAll() {
 	s.m.Unlock()
 }
 
+// AuthenticationRestriction represents an authentication restriction
+// for a MongoDB User. Authentication Restrictions was added in version
+// 3.6.
+//
+// Relevant documentation:
+//
+//     https://docs.mongodb.com/manual/reference/method/db.createUser/#authentication-restrictions
+//
+type AuthenticationRestriction struct {
+	ClientSource  []string `bson:"clientSource,omitempty"`
+	ServerAddress []string `bson:"serverAddress,omitempty"`
+}
+
 // User represents a MongoDB user.
 //
 // Relevant documentation:
@@ -1208,6 +1221,15 @@ type User struct {
 	// WARNING: This setting was only ever supported in MongoDB 2.4,
 	// and is now obsolete.
 	UserSource string `bson:"userSource,omitempty"`
+
+	// AuthenticationRestrictions represents authentication restrictions
+	// the server enforces on the created user. Specifies a list of IP
+	// addresses and CIDR ranges from which the user is allowed to connect
+	// to the server or from which the server can accept users.
+	//
+	// WARNING: Authentication Restrictions are only supported in version
+	// 3.6 and above.
+	AuthenticationRestrictions []AuthenticationRestriction `bson:"authenticationRestrictions,omitempty"`
 }
 
 // Role available role for users
@@ -1369,6 +1391,9 @@ func (db *Database) runUserCmd(cmdName string, user *User) error {
 	}
 	if roles != nil || user.Roles != nil || cmdName == "createUser" {
 		cmd = append(cmd, bson.DocElem{Name: "roles", Value: roles})
+	}
+	if user.AuthenticationRestrictions != nil && len(user.AuthenticationRestrictions) > 0 {
+		cmd = append(cmd, bson.DocElem{Name: "authenticationRestrictions", Value: user.AuthenticationRestrictions})
 	}
 	err := db.Run(cmd, nil)
 	if !isNoCmd(err) && user.UserSource != "" && (user.UserSource != "$external" || db.Name != "$external") {
