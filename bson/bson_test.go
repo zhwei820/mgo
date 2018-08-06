@@ -277,56 +277,122 @@ func (s *S) TestPtrInline(c *C) {
 
 	// struct with inline pointer
 	{
-		in := InlinePtrStruct{A: 1, MStruct: &MStruct{M: 8}}
+		in := InlineG1{G1: 4, Final: &Final{G0: 8}}
+		c.Assert(in.Final, NotNil)
+
 		data, err := bson.Marshal(in)
 		c.Assert(err, IsNil)
 
-		var out InlinePtrStruct
+		var out InlineG1
 		err = bson.Unmarshal(data, &out)
 		c.Assert(err, IsNil)
+		c.Assert(out.Final, NotNil)
 		c.Assert(out, DeepEquals, in)
 	}
 
-	// Deeper struct with inline pointer
+	// deeper struct with inline pointer
 	{
-		in := InlinePtrPtrStruct{B: 10, InlinePtrStruct: &InlinePtrStruct{A: 20, MStruct: &MStruct{M: 30}}}
+		in := InlineG2{G2: 15, InlineG1: &InlineG1{G1:16, Final: &Final{G0: 23}}}
+		c.Assert(in.InlineG1, NotNil)
+		c.Assert(in.Final, NotNil)
+
 		data, err := bson.Marshal(in)
 		c.Assert(err, IsNil)
 
-		var out InlinePtrPtrStruct
+		var out InlineG2
 		err = bson.Unmarshal(data, &out)
 		c.Assert(err, IsNil)
+		c.Assert(out.InlineG1, NotNil)
+		c.Assert(out.Final, NotNil)
 		c.Assert(out, DeepEquals, in)
 	}
 
-	// Nil embed struct
+	// struct with nil inline pointer
 	{
-		in := InlinePtrStruct{A: 4}
+		in := InlineG1{G1: 42}
+		c.Assert(in.Final, IsNil)
+
 		data, err := bson.Marshal(in)
 		c.Assert(err, IsNil)
 
-		out := InlinePtrStruct{}
+		// default behaviour: no respect to nil values
+		var out InlineG1
 		err = bson.Unmarshal(data, &out)
 		c.Assert(err, IsNil)
+		c.Assert(out.Final, NotNil)
+		c.Assert(out.G1, Equals, in.G1)
+		c.Assert(out.G0, Equals, 0)
 
-		c.Assert(out.A, Equals, 4)
-		c.Assert(out.M, Equals, 0)
+		// respect to nil value
+		var outRespectNils InlineG1
+		bson.SetRespectNilValues(true)
+		err = bson.Unmarshal(data, &outRespectNils)
+		bson.SetRespectNilValues(false)
+		c.Assert(err, IsNil)
+		c.Assert(outRespectNils.Final, IsNil)
+		c.Assert(outRespectNils, DeepEquals, in)
 	}
 
-	// Nil deeper embed struct
+	// deeper struct with nil inline pointer
 	{
-		in := InlinePtrPtrStruct{B: 5}
+		in := InlineG2{G2: 108}
+		c.Assert(in.InlineG1, IsNil)
+
 		data, err := bson.Marshal(in)
 		c.Assert(err, IsNil)
 
-		var out InlinePtrPtrStruct
+		// default behaviour: no respect to nil values
+		var out InlineG2
 		err = bson.Unmarshal(data, &out)
 		c.Assert(err, IsNil)
+		c.Assert(out.InlineG1, NotNil)
+		c.Assert(out.Final, NotNil)
+		c.Assert(out.G2, Equals, in.G2)
+		c.Assert(out.G1, Equals, 0)
+		c.Assert(out.G0, Equals, 0)
 
-		c.Assert(out.B, Equals, 5)
-		c.Assert(out.A, Equals, 0)
-		c.Assert(out.M, Equals, 0)
+		// respect to nil value
+		var outRespectNils InlineG2
+		bson.SetRespectNilValues(true)
+		err = bson.Unmarshal(data, &outRespectNils)
+		bson.SetRespectNilValues(false)
+		c.Assert(err, IsNil)
+		c.Assert(outRespectNils.InlineG1, IsNil)
+		c.Assert(outRespectNils, DeepEquals, in)
 	}
+
+	// mixing empty & nil
+	// @TODO
+	/*
+	{
+		in := InlineG2{G2: 108, InlineG1: &InlineG1{}}
+		c.Assert(in.InlineG1, NotNil)
+		c.Assert(in.Final, IsNil)
+
+		data, err := bson.Marshal(in)
+		c.Assert(err, IsNil)
+
+		// default behaviour: no respect to nil values
+		var out InlineG2
+		err = bson.Unmarshal(data, &out)
+		c.Assert(err, IsNil)
+		c.Assert(out.InlineG1, NotNil)
+		c.Assert(out.Final, NotNil)
+		c.Assert(out.G2, Equals, in.G2)
+		c.Assert(out.G1, Equals, 0)
+		c.Assert(out.G0, Equals, 0)
+
+		// respect to nil value
+		var outRespectNils InlineG2
+		bson.SetRespectNilValues(true)
+		err = bson.Unmarshal(data, &outRespectNils)
+		bson.SetRespectNilValues(false)
+		c.Assert(err, IsNil)
+		c.Assert(outRespectNils.InlineG1, NotNil)
+		c.Assert(outRespectNils.Final, IsNil)
+		c.Assert(outRespectNils, DeepEquals, in)
+	}
+	*/
 }
 
 // --------------------------------------------------------------------------
@@ -1234,17 +1300,17 @@ type unexported struct {
 	A int
 }
 
-// Structs for `inline pointers` feature
-type MStruct struct {
-	M int `bson:"m,omitempty"`
+// Structures for `inline pointers` feature
+type Final struct {
+	G0 int `bson:"g0,omitempty"`
 }
-type InlinePtrStruct struct {
-	A        int
-	*MStruct `bson:",inline"`
+type InlineG1 struct {
+	G1 int `bson:"g1,omitempty"`
+	*Final `bson:",inline"`
 }
-type InlinePtrPtrStruct struct {
-	B                int
-	*InlinePtrStruct `bson:",inline"`
+type InlineG2 struct {
+	G2 int    `bson:"g2,omitempty"`
+	*InlineG1 `bson:",inline"`
 }
 
 type getterSetterD bson.D

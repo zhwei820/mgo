@@ -195,7 +195,11 @@ func (d *decoder) readDocTo(out reflect.Value) {
 		}
 		fieldsMap = sinfo.FieldsMap
 		if sinfo.InlineStruct {
-			out.Set(sinfo.DeepZero())
+			if useRespectNilValues {
+				out.Set(sinfo.Zero)
+			} else {
+				out.Set(deepZero(sinfo.st))
+			}
 		} else {
 			out.Set(sinfo.Zero)
 		}
@@ -286,7 +290,30 @@ func (d *decoder) readDocTo(out reflect.Value) {
 				if info.Inline == nil {
 					d.readElemTo(out.Field(info.Num), kind)
 				} else {
-					d.readElemTo(out.FieldByIndex(info.Inline), kind)
+					f, err := safeFieldByIndex(out, info.Inline)
+					if err != nil {
+						inlineParent := info.Inline[:len(info.Inline)-1]
+
+						// fix parent
+						var fParent reflect.Value
+						if fParent, err = safeFieldByIndex(out, inlineParent); err != nil {
+							d.dropElem(kind)
+							continue
+						}
+
+						fParent.Set(getZeroField(out, inlineParent))
+
+						// retry now
+						f, err = safeFieldByIndex(out, info.Inline)
+						if err == nil {
+							d.readElemTo(f, kind)
+						} else {
+							d.dropElem(kind)
+						}
+
+					} else {
+						d.readElemTo(f, kind)
+					}
 				}
 			} else if inlineMap.IsValid() {
 				if inlineMap.IsNil() {

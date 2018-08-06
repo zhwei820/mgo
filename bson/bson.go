@@ -692,11 +692,8 @@ type structInfo struct {
 	InlineStruct bool
 
 	Zero reflect.Value
-	st   reflect.Type
-}
 
-func (s *structInfo) DeepZero() reflect.Value {
-	return deepZero(s.st)
+	st reflect.Type
 }
 
 type fieldInfo struct {
@@ -848,7 +845,6 @@ func getStructInfo(st reflect.Type) (*structInfo, error) {
 }
 
 // DeepZero returns recursive zero object
-// @todo tests
 func deepZero(st reflect.Type) (result reflect.Value) {
 	result = reflect.Indirect(reflect.New(st))
 
@@ -867,9 +863,21 @@ func deepZero(st reflect.Type) (result reflect.Value) {
 	return
 }
 
+// getZeroField returns recursive zero object
+func getZeroField(v reflect.Value, index []int) reflect.Value {
+	for _, ind := range index {
+		if v.Kind() == reflect.Ptr && v.Elem().Kind() == reflect.Struct {
+			v = v.Elem()
+		}
+
+		v = v.Field(ind)
+	}
+
+	dz := deepZero(v.Type().Elem())
+	return reflect.New(dz.Type())
+}
+
 // recursivePointerTo calls reflect.New(v.Type) but recursively for its fields inside
-//
-// @todo tests
 func recursivePointerTo(v reflect.Value) reflect.Value {
 	v = reflect.Indirect(v)
 	result := reflect.New(v.Type())
