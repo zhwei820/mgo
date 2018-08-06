@@ -2693,8 +2693,7 @@ func (p *Pipe) Iter() *Iter {
 	c := p.collection.With(cloned)
 
 	var result struct {
-		Result []bson.Raw // 2.4, no cursors.
-		Cursor cursorData // 2.6+, with cursors.
+		Cursor cursorData
 	}
 
 	cmd := pipeCmd{
@@ -2713,11 +2712,8 @@ func (p *Pipe) Iter() *Iter {
 		cmd.AllowDisk = false
 		err = c.Database.Run(cmd, &result)
 	}
-	firstBatch := result.Result
-	if firstBatch == nil {
-		firstBatch = result.Cursor.FirstBatch
-	}
-	it := c.NewIter(p.session, firstBatch, result.Cursor.Id, err)
+
+	it := c.NewIter(p.session, result.Cursor.FirstBatch, result.Cursor.Id, err)
 	if p.maxTimeMS > 0 {
 		it.maxTimeMS = p.maxTimeMS
 	}
