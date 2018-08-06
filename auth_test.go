@@ -168,9 +168,6 @@ func (s *S) TestAuthUpsertUserErrors(c *C) {
 }
 
 func (s *S) TestAuthUpsertUser(c *C) {
-	if !s.versionAtLeast(2, 4) {
-		c.Skip("UpsertUser only works on 2.4+")
-	}
 	session, err := mgo.Dial("localhost:40002")
 	c.Assert(err, IsNil)
 	defer session.Close()
@@ -214,9 +211,6 @@ func (s *S) TestAuthUpsertUser(c *C) {
 }
 
 func (s *S) TestAuthUpsertUserOtherDBRoles(c *C) {
-	if !s.versionAtLeast(2, 4) {
-		c.Skip("UpsertUser only works on 2.4+")
-	}
 	session, err := mgo.Dial("localhost:40002")
 	c.Assert(err, IsNil)
 	defer session.Close()
@@ -247,9 +241,6 @@ func (s *S) TestAuthUpsertUserOtherDBRoles(c *C) {
 }
 
 func (s *S) TestAuthUpsertUserUpdates(c *C) {
-	if !s.versionAtLeast(2, 4) {
-		c.Skip("UpsertUser only works on 2.4+")
-	}
 	session, err := mgo.Dial("localhost:40002")
 	c.Assert(err, IsNil)
 	defer session.Close()

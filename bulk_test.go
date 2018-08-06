@@ -185,14 +185,10 @@ func (s *S) TestBulkErrorString(c *C) {
 	bulk.Unordered()
 	bulk.Insert(M{"_id": "dupone"}, M{"_id": "dupone"}, M{"_id": "duptwo"}, M{"_id": "duptwo"})
 	_, err = bulk.Run()
-	if s.versionAtLeast(2, 6) {
-		c.Assert(err, ErrorMatches, "multiple errors in bulk operation:\n(  - .*duplicate.*\n){2}$")
-		c.Assert(err, ErrorMatches, "(?s).*dupone.*")
-		c.Assert(err, ErrorMatches, "(?s).*duptwo.*")
-	} else {
-		// Wire protocol query doesn't return all errors.
-		c.Assert(err, ErrorMatches, ".*duplicate.*")
-	}
+	c.Assert(err, ErrorMatches, "multiple errors in bulk operation:\n(  - .*duplicate.*\n){2}$")
+	c.Assert(err, ErrorMatches, "(?s).*dupone.*")
+	c.Assert(err, ErrorMatches, "(?s).*duptwo.*")
+
 	c.Assert(mgo.IsDup(err), Equals, true)
 
 	// With mixed errors, present them all.
@@ -200,19 +196,12 @@ func (s *S) TestBulkErrorString(c *C) {
 	bulk.Unordered()
 	bulk.Insert(M{"_id": 1}, M{"_id": []int{2}})
 	_, err = bulk.Run()
-	if s.versionAtLeast(2, 6) {
-		c.Assert(err, ErrorMatches, "multiple errors in bulk operation:\n  - .*duplicate.*\n  - .*array.*\n$")
-	} else {
-		// Wire protocol query doesn't return all errors.
-		c.Assert(err, ErrorMatches, ".*array.*")
-	}
+	c.Assert(err, ErrorMatches, "multiple errors in bulk operation:\n  - .*duplicate.*\n  - .*array.*\n$")
+
 	c.Assert(mgo.IsDup(err), Equals, false)
 }
 
-func (s *S) TestBulkErrorCases_2_6(c *C) {
-	if !s.versionAtLeast(2, 6) {
-		c.Skip("2.4- has poor bulk reporting")
-	}
+func (s *S) TestBulkErrorCases(c *C) {
 	session, err := mgo.Dial("localhost:40001")
 	c.Assert(err, IsNil)
 	defer session.Close()
@@ -248,45 +237,6 @@ func (s *S) TestBulkErrorCases_2_6(c *C) {
 	c.Check(ecases[2].Index, Equals, 1008)
 }
 
-func (s *S) TestBulkErrorCases_2_4(c *C) {
-	if s.versionAtLeast(2, 6) {
-		c.Skip("2.6+ has better reporting")
-	}
-	session, err := mgo.Dial("localhost:40001")
-	c.Assert(err, IsNil)
-	defer session.Close()
-
-	coll := session.DB("mydb").C("mycoll")
-
-	bulk := coll.Bulk()
-	bulk.Unordered()
-
-	// There's a limit of 1000 operations per command, so
-	// this forces the more complex indexing logic to act.
-	for i := 0; i < 1010; i++ {
-		switch i {
-		case 3, 14:
-			bulk.Insert(M{"_id": "dupone"})
-		case 5:
-			bulk.Update(M{"_id": i - 1}, M{"$set": M{"n": 4}})
-		case 106:
-			bulk.Update(M{"_id": i - 1}, M{"$bogus": M{"n": 4}})
-		case 7, 1008:
-			bulk.Insert(M{"_id": "duptwo"})
-		default:
-			bulk.Insert(M{"_id": i})
-		}
-	}
-
-	_, err = bulk.Run()
-	ecases := err.(*mgo.BulkError).Cases()
-
-	c.Check(ecases[0].Err, ErrorMatches, ".*duplicate.*duptwo.*")
-	c.Check(ecases[0].Index, Equals, -1)
-	c.Check(ecases[1].Err, ErrorMatches, `.*\$bogus.*`)
-	c.Check(ecases[1].Index, Equals, 106)
-}
-
 func (s *S) TestBulkErrorCasesOrdered(c *C) {
 	session, err := mgo.Dial("localhost:40001")
 	c.Assert(err, IsNil)
@@ -313,11 +263,8 @@ func (s *S) TestBulkErrorCasesOrdered(c *C) {
 	ecases := err.(*mgo.BulkError).Cases()
 
 	c.Check(ecases[0].Err, ErrorMatches, ".*duplicate.*dupone.*")
-	if s.versionAtLeast(2, 6) {
-		c.Check(ecases[0].Index, Equals, 14)
-	} else {
-		c.Check(ecases[0].Index, Equals, -1)
-	}
+	c.Check(ecases[0].Index, Equals, 14)
+
 	c.Check(ecases, HasLen, 1)
 }
 
@@ -339,9 +286,7 @@ func (s *S) TestBulkUpdate(c *C) {
 	r, err := bulk.Run()
 	c.Assert(err, IsNil)
 	c.Assert(r.Matched, Equals, 4)
-	if s.versionAtLeast(2, 6) {
-		c.Assert(r.Modified, Equals, 3)
-	}
+	c.Assert(r.Modified, Equals, 3)
 
 	type doc struct{ N int }
 	var res []doc
@@ -445,9 +390,7 @@ func (s *S) TestBulkUpdateAll(c *C) {
 	r, err := bulk.Run()
 	c.Assert(err, IsNil)
 	c.Assert(r.Matched, Equals, 6)
-	if s.versionAtLeast(2, 6) {
-		c.Assert(r.Modified, Equals, 5)
-	}
+	c.Assert(r.Modified, Equals, 5)
 
 	type doc struct{ N int }
 	var res []doc
@@ -475,9 +418,7 @@ func (s *S) TestBulkMixedUnordered(c *C) {
 	r, err := bulk.Run()
 	c.Assert(err, IsNil)
 	c.Assert(r.Matched, Equals, 3)
-	if s.versionAtLeast(2, 6) {
-		c.Assert(r.Modified, Equals, 3)
-	}
+	c.Assert(r.Modified, Equals, 3)
 
 	type doc struct{ N int }
 	var res []doc
