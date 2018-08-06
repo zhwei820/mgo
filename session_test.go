@@ -3671,16 +3671,14 @@ var indexTests = []struct {
 	},
 }, {
 	mgo.Index{
-		Key:      []string{"a", "-b"},
-		Unique:   true,
-		DropDups: true,
+		Key:    []string{"a", "-b"},
+		Unique: true,
 	},
 	M{
-		"name":     "a_1_b_-1",
-		"key":      M{"a": 1, "b": -1},
-		"ns":       "mydb.mycoll",
-		"unique":   true,
-		"dropDups": true,
+		"name":   "a_1_b_-1",
+		"key":    M{"a": 1, "b": -1},
+		"ns":     "mydb.mycoll",
+		"unique": true,
 	},
 }, {
 	mgo.Index{
@@ -3861,11 +3859,6 @@ func (s *S) TestEnsureIndex(c *C) {
 			expectedName, _ = test.expected["name"].(string)
 		}
 
-		if s.versionAtLeast(2, 7) {
-			// Was deprecated in 2.6, and not being reported by 2.7+.
-			delete(test.expected, "dropDups")
-			test.index.DropDups = false
-		}
 		if s.versionAtLeast(3, 2) && test.expected["textIndexVersion"] != nil {
 			test.expected["textIndexVersion"] = 3
 		}

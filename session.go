@@ -1393,7 +1393,6 @@ type indexSpec struct {
 	Name, NS                string
 	Key                     bson.D
 	Unique                  bool    `bson:",omitempty"`
-	DropDups                bool    `bson:"dropDups,omitempty"`
 	Background              bool    `bson:",omitempty"`
 	Sparse                  bool    `bson:",omitempty"`
 	Bits                    int     `bson:",omitempty"`
@@ -1417,7 +1416,6 @@ type indexSpec struct {
 type Index struct {
 	Key           []string // Index key fields; prefix name with dash (-) for descending order
 	Unique        bool     // Prevent two documents from having the same index key
-	DropDups      bool     // Drop documents with the same index key as a previously indexed one
 	Background    bool     // Build index in background and return immediately
 	Sparse        bool     // Only index documents containing the Key fields
 	PartialFilter bson.M   // Partial index filter expression
@@ -1511,7 +1509,6 @@ type Collation struct {
 }
 
 // mgo.v3: Drop Minf and Maxf and transform Min and Max to floats.
-// mgo.v3: Drop DropDups as it's unsupported past 2.8.
 
 type indexKeyInfo struct {
 	name    string
@@ -1614,7 +1611,6 @@ func (c *Collection) EnsureIndexKey(key ...string) error {
 //     index := Index{
 //         Key: []string{"lastname", "firstname"},
 //         Unique: true,
-//         DropDups: true,
 //         Background: true, // See notes.
 //         Sparse: true,
 //     }
@@ -1629,8 +1625,7 @@ func (c *Collection) EnsureIndexKey(key ...string) error {
 //     [$<kind>:][-]<field name>
 //
 // If the Unique field is true, the index must necessarily contain only a single
-// document per Key.  With DropDups set to true, documents with the same key
-// as a previously indexed one will be dropped rather than an error returned.
+// document per Key.
 //
 // If Background is true, other connections will be allowed to proceed using
 // the collection without the index while it's being built. Note that the
@@ -1694,7 +1689,6 @@ func (c *Collection) EnsureIndex(index Index) error {
 		NS:                      c.FullName,
 		Key:                     keyInfo.key,
 		Unique:                  index.Unique,
-		DropDups:                index.DropDups,
 		Background:              index.Background,
 		Sparse:                  index.Sparse,
 		Bits:                    index.Bits,
@@ -1921,7 +1915,6 @@ func indexFromSpec(spec indexSpec) Index {
 		Name:             spec.Name,
 		Key:              simpleIndexKey(spec.Key),
 		Unique:           spec.Unique,
-		DropDups:         spec.DropDups,
 		Background:       spec.Background,
 		Sparse:           spec.Sparse,
 		Minf:             spec.Min,
