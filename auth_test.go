@@ -357,7 +357,7 @@ func (s *S) TestAuthUpsertUserAuthenticationRestrictions(c *C) {
 		Password: "123456",
 		Roles:    []mgo.Role{mgo.RoleRead},
 		OtherDBRoles: map[string][]mgo.Role{
-			"local": []mgo.Role{mgo.RoleRead},
+			"mydb": []mgo.Role{mgo.RoleReadWrite},
 		},
 		AuthenticationRestrictions: []mgo.AuthenticationRestriction{
 			{
@@ -370,13 +370,12 @@ func (s *S) TestAuthUpsertUserAuthenticationRestrictions(c *C) {
 	c.Assert(err, IsNil)
 
 	// Dial again to ensure the positive authentication restriction allows the connection
-	// and query to "local.me"
+	// and insert to "mydb.mycoll"
 	allowSession, err := mgo.Dial("mongodb://allowUser:123456@127.0.0.1:40002/admin")
 	c.Assert(err, IsNil)
-	var out interface{}
-	err = allowSession.DB("local").C("me").Find(nil).One(&out)
+	coll := allowSession.DB("mydb").C("mycoll")
+	err = coll.Insert(M{"n": 1})
 	c.Assert(err, IsNil)
-	c.Assert(out, NotNil)
 	defer allowSession.Close()
 
 	// this user should fail authentication restrictions
