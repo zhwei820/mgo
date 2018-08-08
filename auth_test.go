@@ -355,7 +355,7 @@ func (s *S) TestAuthUpsertUserAuthenticationRestrictions(c *C) {
 	allowUser := &mgo.User{
 		Username: "allowUser",
 		Password: "123456",
-		Roles:    []mgo.Role{mgo.RoleReadAny},
+		Roles:    []mgo.Role{mgo.RoleRead},
 		AuthenticationRestrictions: []mgo.AuthenticationRestriction{
 			{
 				ClientSource:  []string{"127.0.0.1"},
@@ -379,7 +379,7 @@ func (s *S) TestAuthUpsertUserAuthenticationRestrictions(c *C) {
 	denyUser := &mgo.User{
 		Username: "denyUser",
 		Password: "123456",
-		Roles:    []mgo.Role{mgo.RoleReadAny},
+		Roles:    []mgo.Role{mgo.RoleRead},
 		AuthenticationRestrictions: []mgo.AuthenticationRestriction{
 			{
 				ClientSource:  []string{"1.2.3.4"},
