@@ -369,7 +369,10 @@ func (s *S) TestAuthUpsertUserAuthenticationRestrictions(c *C) {
 	// Dial again to ensure the positive authentication restriction allows the connection
 	allowSession, err := mgo.Dial("mongodb://allowUser:123456@127.0.0.1:40002/admin")
 	c.Assert(err, IsNil)
-	c.Assert(allowSession.Run(D{{"listDatabases", "1"}}, nil), IsNil)
+	var out interface{}
+	err = allowSession.DB("admin").C("system.version").Find(nil).All(&out)
+	c.Assert(err, IsNil)
+	c.Assert(out, NotNil)
 	defer allowSession.Close()
 
 	// this user should fail authentication restrictions
