@@ -1274,8 +1274,6 @@ const (
 // a MongoDB user within the db database. If the named user doesn't exist
 // it will be created.
 //
-// This method should only be used from MongoDB 2.4 and on.
-//
 // Relevant documentation:
 //
 //     http://docs.mongodb.org/manual/reference/user-privileges/
