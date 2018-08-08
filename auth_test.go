@@ -357,7 +357,7 @@ func (s *S) TestAuthUpsertUserAuthenticationRestrictions(c *C) {
 		Password: "123456",
 		Roles:    []mgo.Role{mgo.RoleRead},
 		OtherDBRoles: map[string][]mgo.Role{
-			{"local": []mgo.Role{mgo.RoleRead}},
+			"local": []mgo.Role{mgo.RoleRead},
 		},
 		AuthenticationRestrictions: []mgo.AuthenticationRestriction{
 			{
