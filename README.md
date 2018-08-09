@@ -6,6 +6,8 @@ The MongoDB driver for Go
 This fork has had a few improvements by ourselves as well as several PR's merged from the original mgo repo that are currently awaiting review.
 Changes are mostly geared towards performance improvements and bug fixes, though a few new features have been added.
 
+Only mongoDB versions from 3.0 onwards are supported.
+
 Further PR's (with tests) are welcome, but please maintain backwards compatibility.
 
 Detailed documentation of the API is available at
@@ -59,6 +61,7 @@ A [sub-package](https://godoc.org/github.com/globalsign/mgo/bson) that implement
 * Add `ssl` to the dial string options ([details](https://github.com/globalsign/mgo/pull/184))
 * Support connecting via Unix sockets ([details](https://github.com/globalsign/mgo/pull/129))
 * Support MongoDB User authenticationRestrictions ([details](https://github.com/globalsign/mgo/pull/229))
+* Drop support for old versions (< 3.0) ([details](https://github.com/globalsign/mgo/pull/232))
 
 ---
 
