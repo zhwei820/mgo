@@ -309,9 +309,12 @@ func (s *S) TestAuthUpsertUserAuthenticationRestrictions(c *C) {
 	err = admindb.Login("root", "rapadura")
 
 	allowUser := &mgo.User{
-		Username: "authRestrictionUser",
+		Username: "allowUser",
 		Password: "123456",
-		Roles:    []mgo.Role{mgo.RoleReadWrite},
+		Roles:    []mgo.Role{mgo.RoleRead},
+		OtherDBRoles: map[string][]mgo.Role{
+			"mydb": []mgo.Role{mgo.RoleReadWrite},
+		},
 		AuthenticationRestrictions: []mgo.AuthenticationRestriction{
 			{
 				ClientSource:  []string{"127.0.0.1"},
@@ -323,16 +326,19 @@ func (s *S) TestAuthUpsertUserAuthenticationRestrictions(c *C) {
 	c.Assert(err, IsNil)
 
 	// Dial again to ensure the positive authentication restriction allows the connection
-	allowSession, err := mgo.Dial("mongodb://authRestrictionUser:123456@127.0.0.1:40002/admin")
+	// and insert to "mydb.mycoll"
+	allowSession, err := mgo.Dial("mongodb://allowUser:123456@127.0.0.1:40002/admin")
 	c.Assert(err, IsNil)
-	c.Assert(allowSession.Ping(), IsNil)
+	coll := allowSession.DB("mydb").C("mycoll")
+	err = coll.Insert(M{"n": 1})
+	c.Assert(err, IsNil)
 	defer allowSession.Close()
 
 	// this user should fail authentication restrictions
 	denyUser := &mgo.User{
 		Username: "denyUser",
 		Password: "123456",
-		Roles:    []mgo.Role{mgo.RoleReadWrite},
+		Roles:    []mgo.Role{mgo.RoleRead},
 		AuthenticationRestrictions: []mgo.AuthenticationRestriction{
 			{
 				ClientSource:  []string{"1.2.3.4"},
@@ -343,7 +349,7 @@ func (s *S) TestAuthUpsertUserAuthenticationRestrictions(c *C) {
 	err = admindb.UpsertUser(denyUser)
 	c.Assert(err, IsNil)
 
-	// Dial again to ensure the authentication restriction blocks the connections.
+	// Dial again to ensure the authentication restriction blocks the connection
 	_, err = mgo.Dial("mongodb://denyUser:123456@127.0.0.1:40002/admin")
 	c.Assert(err, ErrorMatches, ".*Authentication failed.")
 }
