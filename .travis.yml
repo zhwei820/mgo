@@ -12,9 +12,9 @@ env:
         - FASTDL=https://fastdl.mongodb.org/linux
     matrix:
         - MONGODB=x86_64-ubuntu1404-3.0.15
-        - MONGODB=x86_64-ubuntu1404-3.2.17
-        - MONGODB=x86_64-ubuntu1404-3.4.10
-        - MONGODB=x86_64-ubuntu1404-3.6.0
+        - MONGODB=x86_64-ubuntu1404-3.2.20
+        - MONGODB=x86_64-ubuntu1404-3.4.16
+        - MONGODB=x86_64-ubuntu1404-3.6.6
 
 install:
 
