@@ -114,7 +114,7 @@ func (s *S) TestSetEngine(c *C) {
 	defer mmapServer.Stop()
 
 	mSession := mmapServer.Session()
-	defer mSsession.Close()
+	defer mSession.Close()
 
 	c.Assert(mmapServer.args[3], Equals, "--storageEngine=mmapv1")
 	c.Assert(len(mmapServer.args), Equals, 8)
@@ -128,8 +128,8 @@ func (s *S) TestSetEngine(c *C) {
 	wSession := wtServer.Session()
 	defer wSession.Close()
 
-	c.Assert(server.args[3], Equals, "--storageEngine=wiredTiger")
-	c.Assert(len(server.args), Equals, 4)
+	c.Assert(wtServer.args[3], Equals, "--storageEngine=wiredTiger")
+	c.Assert(len(wtServer.args), Equals, 4)
 
 	// invalid engine
 	var failServer dbtest.DBServer
