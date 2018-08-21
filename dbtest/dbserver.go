@@ -29,6 +29,8 @@ type DBServer struct {
 	server  *exec.Cmd
 	dbpath  string
 	host    string
+	engine  string
+	args    []string
 	tomb    tomb.Tomb
 }
 
@@ -39,7 +41,16 @@ func (dbs *DBServer) SetPath(dbpath string) {
 	dbs.dbpath = dbpath
 }
 
+// SetEngine defines the MongoDB storage engine to be used when starting the
+// server.
+func (dbs *DBServer) SetEngine(engine string) {
+	dbs.engine = engine
+}
+
 func (dbs *DBServer) start() {
+	if dbs.engine == "" {
+		dbs.engine = "mmapv1"
+	}
 	if dbs.server != nil {
 		panic("DBServer already started")
 	}
@@ -55,17 +66,27 @@ func (dbs *DBServer) start() {
 	l.Close()
 	dbs.host = addr.String()
 
-	args := []string{
+	dbs.args = []string{
 		"--dbpath", dbs.dbpath,
 		"--bind_ip", "127.0.0.1",
 		"--port", strconv.Itoa(addr.Port),
-		"--nssize", "1",
-		"--noprealloc",
-		"--smallfiles",
-		"--nojournal",
 	}
+	if dbs.engine == "wiredTiger" {
+		dbs.args = append(dbs.args, "--storageEngine="+dbs.engine)
+	} else if dbs.engine == "mmapv1" {
+		// default to mmapv1 and add mmapv1-only args (nssize, noprealloc, smallfiles and nojournal)
+		dbs.args = append(dbs.args, "--storageEngine="+dbs.engine,
+			"--nssize", "1",
+			"--noprealloc",
+			"--smallfiles",
+			"--nojournal",
+		)
+	} else {
+		panic("unsupported storage engine: " + dbs.engine)
+	}
+
 	dbs.tomb = tomb.Tomb{}
-	dbs.server = exec.Command("mongod", args...)
+	dbs.server = exec.Command("mongod", dbs.args...)
 	dbs.server.Stdout = &dbs.output
 	dbs.server.Stderr = &dbs.output
 	err = dbs.server.Start()

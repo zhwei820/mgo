@@ -106,3 +106,35 @@ func (s *S) TestCheckSessionsDisabled(c *C) {
 	defer session.Close()
 	server.Wipe()
 }
+
+func (s *S) TestSetEngine(c *C) {
+	// mmapv1 (default)
+	var mmapServer dbtest.DBServer
+	mmapServer.SetPath(c.MkDir())
+	defer mmapServer.Stop()
+
+	mSession := mmapServer.Session()
+	defer mSsession.Close()
+
+	c.Assert(mmapServer.args[3], Equals, "--storageEngine=mmapv1")
+	c.Assert(len(mmapServer.args), Equals, 8)
+
+	// wiredTiger
+	var wtServer dbtest.DBServer
+	wtServer.SetPath(c.MkDir())
+	wtServer.SetEngine("wiredTiger")
+	defer wtServer.Stop()
+
+	wSession := wtServer.Session()
+	defer wSession.Close()
+
+	c.Assert(server.args[3], Equals, "--storageEngine=wiredTiger")
+	c.Assert(len(server.args), Equals, 4)
+
+	// invalid engine
+	var failServer dbtest.DBServer
+	failServer.SetPath(c.MkDir())
+	failServer.SetEngine("thisshouldpanic")
+	defer failServer.Stop()
+	c.Assert(failServer.Session(), Panics)
+}
