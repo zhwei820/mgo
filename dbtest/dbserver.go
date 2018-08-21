@@ -24,12 +24,13 @@ import (
 // Before the DBServer is used the SetPath method must be called to define
 // the location for the database files to be stored.
 type DBServer struct {
-	session *mgo.Session
-	output  bytes.Buffer
-	server  *exec.Cmd
-	dbpath  string
-	host    string
-	tomb    tomb.Tomb
+	session        *mgo.Session
+	output         bytes.Buffer
+	server         *exec.Cmd
+	dbpath         string
+	host           string
+	disableMonitor bool
+	tomb           tomb.Tomb
 }
 
 // SetPath defines the path to the directory where the database files will be
@@ -37,6 +38,12 @@ type DBServer struct {
 // by the test helper.
 func (dbs *DBServer) SetPath(dbpath string) {
 	dbs.dbpath = dbpath
+}
+
+// SetMonitor defines whether the MongoDB server should be monitored for crashes
+// panics, etc.
+func (dbs *DBServer) SetMonitor(enabled bool) {
+	dbs.disableMonitor = !enabled
 }
 
 func (dbs *DBServer) start() {
@@ -74,7 +81,9 @@ func (dbs *DBServer) start() {
 		fmt.Fprintf(os.Stderr, "mongod failed to start: %v\n", err)
 		panic(err)
 	}
-	dbs.tomb.Go(dbs.monitor)
+	if !dbs.disableMonitor {
+		dbs.tomb.Go(dbs.monitor)
+	}
 	dbs.Wipe()
 }
 
