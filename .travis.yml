@@ -3,8 +3,8 @@ language: go
 go_import_path: github.com/globalsign/mgo
 
 go:
-    - 1.9.x
     - 1.10.x
+    - 1.11.x
 
 env:
     global:
@@ -33,7 +33,7 @@ install:
 
 before_script:
     - golint  ./... | grep -v 'ID' | cat
-    - go vet github.com/globalsign/mgo/bson github.com/globalsign/mgo/txn github.com/globalsign/mgo 
+    - go vet github.com/globalsign/mgo/bson github.com/globalsign/mgo/txn github.com/globalsign/mgo
     - export NOIPV6=1
     - make startdb
 
