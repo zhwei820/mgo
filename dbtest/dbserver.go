@@ -30,7 +30,6 @@ type DBServer struct {
 	dbpath         string
 	host           string
 	engine         string
-	args           []string
 	disableMonitor bool
 	tomb           tomb.Tomb
 }
@@ -73,7 +72,7 @@ func (dbs *DBServer) start() {
 	l.Close()
 	dbs.host = addr.String()
 
-	dbs.args = []string{
+	args := []string{
 		"--dbpath", dbs.dbpath,
 		"--bind_ip", "127.0.0.1",
 		"--port", strconv.Itoa(addr.Port),
@@ -90,7 +89,7 @@ func (dbs *DBServer) start() {
 	}
 
 	dbs.tomb = tomb.Tomb{}
-	dbs.server = exec.Command("mongod", dbs.args...)
+	dbs.server = exec.Command("mongod", args...)
 	dbs.server.Stdout = &dbs.output
 	dbs.server.Stderr = &dbs.output
 	err = dbs.server.Start()

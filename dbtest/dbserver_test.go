@@ -108,6 +108,13 @@ func (s *S) TestCheckSessionsDisabled(c *C) {
 }
 
 func (s *S) TestSetEngine(c *C) {
+	status := struct {
+		StorageEngine struct {
+			Name string `bson:"name"`
+		} `bson:"storageEngine"`
+	}{}
+	wtStatus := status
+
 	// mmapv1 (default)
 	var mmapServer dbtest.DBServer
 	mmapServer.SetPath(c.MkDir())
@@ -116,8 +123,9 @@ func (s *S) TestSetEngine(c *C) {
 	mSession := mmapServer.Session()
 	defer mSession.Close()
 
-	c.Assert(mmapServer.args[3], Equals, "--storageEngine=mmapv1")
-	c.Assert(len(mmapServer.args), Equals, 8)
+	err := mSession.Run(bson.D{{"serverStatus", "1"}}, &status)
+	c.Assert(err, IsNil)
+	c.Assert(status.StorageEngine.Name, Equals, "mmapv1")
 
 	// wiredTiger
 	var wtServer dbtest.DBServer
@@ -128,13 +136,7 @@ func (s *S) TestSetEngine(c *C) {
 	wSession := wtServer.Session()
 	defer wSession.Close()
 
-	c.Assert(wtServer.args[3], Equals, "--storageEngine=wiredTiger")
-	c.Assert(len(wtServer.args), Equals, 4)
-
-	// invalid engine
-	var failServer dbtest.DBServer
-	failServer.SetPath(c.MkDir())
-	failServer.SetEngine("thisshouldpanic")
-	defer failServer.Stop()
-	c.Assert(failServer.Session(), Panics)
+	err = wSession.Run(bson.D{{"serverStatus", "1"}}, &wtStatus)
+	c.Assert(err, IsNil)
+	c.Assert(wtStatus.StorageEngine.Name, Equals, "wiredTiger")
 }
