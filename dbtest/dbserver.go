@@ -70,18 +70,16 @@ func (dbs *DBServer) start() {
 		"--dbpath", dbs.dbpath,
 		"--bind_ip", "127.0.0.1",
 		"--port", strconv.Itoa(addr.Port),
+		"--storageEngine=" + dbs.engine,
 	}
-	switch {
-	case dbs.engine == "mmapv1":
+	if dbs.engine == "mmapv1" {
 		// default to mmapv1 and add mmapv1-only args (nssize, noprealloc, smallfiles and nojournal)
-		dbs.args = append(dbs.args, "--storageEngine="+dbs.engine,
+		dbs.args = append(dbs.args,
 			"--nssize", "1",
 			"--noprealloc",
 			"--smallfiles",
 			"--nojournal",
 		)
-	default:
-		dbs.args = append(dbs.args, "--storageEngine="+dbs.engine)
 	}
 
 	dbs.tomb = tomb.Tomb{}
