@@ -160,17 +160,14 @@ func (s *S) TestAuthUpsertUserErrors(c *C) {
 	err = mydb.UpsertUser(&mgo.User{})
 	c.Assert(err, ErrorMatches, "user has no Username")
 
-	err = mydb.UpsertUser(&mgo.User{Username: "user", Password: "pass", UserSource: "source"})
-	c.Assert(err, ErrorMatches, "user has both Password/PasswordHash and UserSource set")
+	err = mydb.UpsertUser(&mgo.User{Username: "user", Password: "pass"})
+	c.Assert(err, IsNil)
 
 	err = mydb.UpsertUser(&mgo.User{Username: "user", Password: "pass", OtherDBRoles: map[string][]mgo.Role{"db": nil}})
 	c.Assert(err, ErrorMatches, "user with OtherDBRoles is only supported in the admin or \\$external databases")
 }
 
 func (s *S) TestAuthUpsertUser(c *C) {
-	if !s.versionAtLeast(2, 4) {
-		c.Skip("UpsertUser only works on 2.4+")
-	}
 	session, err := mgo.Dial("localhost:40002")
 	c.Assert(err, IsNil)
 	defer session.Close()
@@ -211,47 +208,9 @@ func (s *S) TestAuthUpsertUser(c *C) {
 
 	err = coll.Insert(M{"n": 1})
 	c.Assert(err, IsNil)
-
-	myotherdb := session.DB("myotherdb")
-
-	err = admindb.Login("root", "rapadura")
-	c.Assert(err, IsNil)
-
-	// Test UserSource.
-	rwuserother := &mgo.User{
-		Username:   "myrwuser",
-		UserSource: "mydb",
-		Roles:      []mgo.Role{mgo.RoleRead},
-	}
-
-	err = myotherdb.UpsertUser(rwuserother)
-	if s.versionAtLeast(2, 6) {
-		c.Assert(err, ErrorMatches, `MongoDB 2.6\+ does not support the UserSource setting`)
-		return
-	}
-	c.Assert(err, IsNil)
-
-	admindb.Logout()
-
-	// Test indirection via UserSource: we can't write to it, because
-	// the roles for myrwuser are different there.
-	othercoll := myotherdb.C("myothercoll")
-	err = othercoll.Insert(M{"n": 1})
-	c.Assert(err, ErrorMatches, "unauthorized|not authorized .*")
-
-	// Reading works, though.
-	err = othercoll.Find(nil).One(nil)
-	c.Assert(err, Equals, mgo.ErrNotFound)
-
-	// Can't login directly into the database using UserSource, though.
-	err = myotherdb.Login("myrwuser", "mypass")
-	c.Assert(err, ErrorMatches, "auth fail(s|ed)|.*Authentication failed.")
 }
 
 func (s *S) TestAuthUpsertUserOtherDBRoles(c *C) {
-	if !s.versionAtLeast(2, 4) {
-		c.Skip("UpsertUser only works on 2.4+")
-	}
 	session, err := mgo.Dial("localhost:40002")
 	c.Assert(err, IsNil)
 	defer session.Close()
@@ -282,9 +241,6 @@ func (s *S) TestAuthUpsertUserOtherDBRoles(c *C) {
 }
 
 func (s *S) TestAuthUpsertUserUpdates(c *C) {
-	if !s.versionAtLeast(2, 4) {
-		c.Skip("UpsertUser only works on 2.4+")
-	}
 	session, err := mgo.Dial("localhost:40002")
 	c.Assert(err, IsNil)
 	defer session.Close()
@@ -353,9 +309,12 @@ func (s *S) TestAuthUpsertUserAuthenticationRestrictions(c *C) {
 	err = admindb.Login("root", "rapadura")
 
 	allowUser := &mgo.User{
-		Username: "authRestrictionUser",
+		Username: "allowUser",
 		Password: "123456",
-		Roles:    []mgo.Role{mgo.RoleReadWrite},
+		Roles:    []mgo.Role{mgo.RoleRead},
+		OtherDBRoles: map[string][]mgo.Role{
+			"mydb": []mgo.Role{mgo.RoleReadWrite},
+		},
 		AuthenticationRestrictions: []mgo.AuthenticationRestriction{
 			{
 				ClientSource:  []string{"127.0.0.1"},
@@ -367,16 +326,19 @@ func (s *S) TestAuthUpsertUserAuthenticationRestrictions(c *C) {
 	c.Assert(err, IsNil)
 
 	// Dial again to ensure the positive authentication restriction allows the connection
-	allowSession, err := mgo.Dial("mongodb://authRestrictionUser:123456@127.0.0.1:40002/admin")
+	// and insert to "mydb.mycoll"
+	allowSession, err := mgo.Dial("mongodb://allowUser:123456@127.0.0.1:40002/admin")
 	c.Assert(err, IsNil)
-	c.Assert(allowSession.Ping(), IsNil)
+	coll := allowSession.DB("mydb").C("mycoll")
+	err = coll.Insert(M{"n": 1})
+	c.Assert(err, IsNil)
 	defer allowSession.Close()
 
 	// this user should fail authentication restrictions
 	denyUser := &mgo.User{
 		Username: "denyUser",
 		Password: "123456",
-		Roles:    []mgo.Role{mgo.RoleReadWrite},
+		Roles:    []mgo.Role{mgo.RoleRead},
 		AuthenticationRestrictions: []mgo.AuthenticationRestriction{
 			{
 				ClientSource:  []string{"1.2.3.4"},
@@ -387,69 +349,10 @@ func (s *S) TestAuthUpsertUserAuthenticationRestrictions(c *C) {
 	err = admindb.UpsertUser(denyUser)
 	c.Assert(err, IsNil)
 
-	// Dial again to ensure the authentication restriction blocks the connections.
+	// Dial again to ensure the authentication restriction blocks the connection
 	_, err = mgo.Dial("mongodb://denyUser:123456@127.0.0.1:40002/admin")
 	c.Assert(err, ErrorMatches, ".*Authentication failed.")
 }
-
-func (s *S) TestAuthAddUser(c *C) {
-	session, err := mgo.Dial("localhost:40002")
-	c.Assert(err, IsNil)
-	defer session.Close()
-
-	admindb := session.DB("admin")
-	err = admindb.Login("root", "rapadura")
-	c.Assert(err, IsNil)
-
-	mydb := session.DB("mydb")
-	err = mydb.AddUser("myruser", "mypass", true)
-	c.Assert(err, IsNil)
-	err = mydb.AddUser("mywuser", "mypass", false)
-	c.Assert(err, IsNil)
-
-	err = mydb.Login("myruser", "mypass")
-	c.Assert(err, IsNil)
-
-	admindb.Logout()
-
-	coll := session.DB("mydb").C("mycoll")
-	err = coll.Insert(M{"n": 1})
-	c.Assert(err, ErrorMatches, "unauthorized|not authorized .*")
-
-	err = mydb.Login("mywuser", "mypass")
-	c.Assert(err, IsNil)
-
-	err = coll.Insert(M{"n": 1})
-	c.Assert(err, IsNil)
-}
-
-func (s *S) TestAuthAddUserReplaces(c *C) {
-	session, err := mgo.Dial("localhost:40002")
-	c.Assert(err, IsNil)
-	defer session.Close()
-
-	admindb := session.DB("admin")
-	err = admindb.Login("root", "rapadura")
-	c.Assert(err, IsNil)
-
-	mydb := session.DB("mydb")
-	err = mydb.AddUser("myuser", "myoldpass", false)
-	c.Assert(err, IsNil)
-	err = mydb.AddUser("myuser", "mynewpass", true)
-	c.Assert(err, IsNil)
-
-	admindb.Logout()
-
-	err = mydb.Login("myuser", "myoldpass")
-	c.Assert(err, ErrorMatches, "auth fail(s|ed)|.*Authentication failed.")
-	err = mydb.Login("myuser", "mynewpass")
-	c.Assert(err, IsNil)
-
-	// ReadOnly flag was changed too.
-	err = mydb.C("mycoll").Insert(M{"n": 1})
-	c.Assert(err, ErrorMatches, "unauthorized|not authorized .*")
-}
-
 func (s *S) TestAuthRemoveUser(c *C) {
 	session, err := mgo.Dial("localhost:40002")
 	c.Assert(err, IsNil)
@@ -460,7 +363,12 @@ func (s *S) TestAuthRemoveUser(c *C) {
 	c.Assert(err, IsNil)
 
 	mydb := session.DB("mydb")
-	err = mydb.AddUser("myuser", "mypass", true)
+	user := &mgo.User{
+		Username: "myuser",
+		Password: "mypass",
+		Roles:    []mgo.Role{mgo.RoleRead},
+	}
+	err = mydb.UpsertUser(user)
 	c.Assert(err, IsNil)
 	err = mydb.RemoveUser("myuser")
 	c.Assert(err, IsNil)
@@ -545,13 +453,25 @@ func (s *S) TestAuthLoginChangePassword(c *C) {
 	c.Assert(err, IsNil)
 
 	mydb := session.DB("mydb")
-	err = mydb.AddUser("myuser", "myoldpass", false)
+	user := &mgo.User{
+		Username: "myuser",
+		Password: "myoldpass",
+		Roles:    []mgo.Role{mgo.RoleRead},
+	}
+
+	err = mydb.UpsertUser(user)
 	c.Assert(err, IsNil)
 
 	err = mydb.Login("myuser", "myoldpass")
 	c.Assert(err, IsNil)
 
-	err = mydb.AddUser("myuser", "mynewpass", true)
+	user = &mgo.User{
+		Username: "myuser",
+		Password: "mynewpass",
+		Roles:    []mgo.Role{mgo.RoleRead},
+	}
+
+	err = mydb.UpsertUser(user)
 	c.Assert(err, IsNil)
 
 	err = mydb.Login("myuser", "mynewpass")
@@ -645,7 +565,13 @@ func (s *S) TestAuthLoginCachingAcrossPool(c *C) {
 
 	// Add another user to test the logout case at the same time.
 	mydb := session.DB("mydb")
-	err = mydb.AddUser("myuser", "mypass", false)
+	user := &mgo.User{
+		Username: "myuser",
+		Password: "mypass",
+		Roles:    []mgo.Role{mgo.RoleReadWrite},
+	}
+
+	err = mydb.UpsertUser(user)
 	c.Assert(err, IsNil)
 
 	err = mydb.Login("myuser", "mypass")
@@ -696,7 +622,13 @@ func (s *S) TestAuthLoginCachingAcrossPoolWithLogout(c *C) {
 
 	// Add another user to test the logout case at the same time.
 	mydb := session.DB("mydb")
-	err = mydb.AddUser("myuser", "mypass", true)
+	user := &mgo.User{
+		Username: "myuser",
+		Password: "mypass",
+		Roles:    []mgo.Role{mgo.RoleRead},
+	}
+
+	err = mydb.UpsertUser(user)
 	c.Assert(err, IsNil)
 
 	err = mydb.Login("myuser", "mypass")
@@ -815,7 +747,13 @@ func (s *S) TestAuthURLWithDatabase(c *C) {
 	defer session.Close()
 
 	mydb := session.DB("mydb")
-	err = mydb.AddUser("myruser", "mypass", true)
+	user := &mgo.User{
+		Username: "myruser",
+		Password: "mypass",
+		Roles:    []mgo.Role{mgo.RoleRead},
+	}
+
+	err = mydb.UpsertUser(user)
 	c.Assert(err, IsNil)
 
 	// Test once with database, and once with source.
