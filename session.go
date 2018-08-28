@@ -3907,7 +3907,7 @@ func (db *Database) run(socket *mongoSocket, cmd, result interface{}) (err error
 	if result != nil {
 		err = bson.Unmarshal(data, result)
 		if err != nil {
-			debugf("Run command unmarshaling failed: %#v", op, err)
+			debugf("Run command unmarshaling: %#v, failed: %#v", op, err)
 			return err
 		}
 		if globalDebug && globalLogger != nil {
