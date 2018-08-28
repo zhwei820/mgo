@@ -72,8 +72,6 @@ func (dbs *DBServer) start() {
 		"--port", strconv.Itoa(addr.Port),
 	}
 	switch {
-	case dbs.engine == "wiredTiger":
-		dbs.args = append(dbs.args, "--storageEngine="+dbs.engine)
 	case dbs.engine == "mmapv1":
 		// default to mmapv1 and add mmapv1-only args (nssize, noprealloc, smallfiles and nojournal)
 		dbs.args = append(dbs.args, "--storageEngine="+dbs.engine,
@@ -83,7 +81,7 @@ func (dbs *DBServer) start() {
 			"--nojournal",
 		)
 	default:
-		panic("unsupported storage engine: " + dbs.engine)
+		dbs.args = append(dbs.args, "--storageEngine="+dbs.engine)
 	}
 
 	dbs.tomb = tomb.Tomb{}
