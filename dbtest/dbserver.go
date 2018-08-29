@@ -29,6 +29,7 @@ type DBServer struct {
 	server         *exec.Cmd
 	dbpath         string
 	host           string
+	engine         string
 	disableMonitor bool
 	tomb           tomb.Tomb
 }
@@ -40,6 +41,12 @@ func (dbs *DBServer) SetPath(dbpath string) {
 	dbs.dbpath = dbpath
 }
 
+// SetEngine defines the MongoDB storage engine to be used when starting the
+// server.
+func (dbs *DBServer) SetEngine(engine string) {
+	dbs.engine = engine
+}
+
 // SetMonitor defines whether the MongoDB server should be monitored for crashes
 // panics, etc.
 func (dbs *DBServer) SetMonitor(enabled bool) {
@@ -47,6 +54,9 @@ func (dbs *DBServer) SetMonitor(enabled bool) {
 }
 
 func (dbs *DBServer) start() {
+	if dbs.engine == "" {
+		dbs.engine = "mmapv1"
+	}
 	if dbs.server != nil {
 		panic("DBServer already started")
 	}
@@ -66,11 +76,18 @@ func (dbs *DBServer) start() {
 		"--dbpath", dbs.dbpath,
 		"--bind_ip", "127.0.0.1",
 		"--port", strconv.Itoa(addr.Port),
-		"--nssize", "1",
-		"--noprealloc",
-		"--smallfiles",
-		"--nojournal",
+		"--storageEngine=" + dbs.engine,
 	}
+	if dbs.engine == "mmapv1" {
+		// default to mmapv1 and add mmapv1-only args (nssize, noprealloc, smallfiles and nojournal)
+		args = append(args,
+			"--nssize", "1",
+			"--noprealloc",
+			"--smallfiles",
+			"--nojournal",
+		)
+	}
+
 	dbs.tomb = tomb.Tomb{}
 	dbs.server = exec.Command("mongod", args...)
 	dbs.server.Stdout = &dbs.output
