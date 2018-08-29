@@ -123,7 +123,7 @@ func (s *S) TestSetEngine(c *C) {
 	mSession := mmapServer.Session()
 	defer mSession.Close()
 
-	err := mSession.Run(bson.D{{"serverStatus", "1"}}, &status)
+	err := mSession.Run("serverStatus", &status)
 	c.Assert(err, IsNil)
 	c.Assert(status.StorageEngine.Name, Equals, "mmapv1")
 
@@ -136,7 +136,7 @@ func (s *S) TestSetEngine(c *C) {
 	wSession := wtServer.Session()
 	defer wSession.Close()
 
-	err = wSession.Run(bson.D{{"serverStatus", "1"}}, &wtStatus)
+	err = wSession.Run("serverStatus", &wtStatus)
 	c.Assert(err, IsNil)
 	c.Assert(wtStatus.StorageEngine.Name, Equals, "wiredTiger")
 }
