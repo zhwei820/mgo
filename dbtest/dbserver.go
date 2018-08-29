@@ -80,7 +80,7 @@ func (dbs *DBServer) start() {
 	}
 	if dbs.engine == "mmapv1" {
 		// default to mmapv1 and add mmapv1-only args (nssize, noprealloc, smallfiles and nojournal)
-		dbs.args = append(dbs.args,
+		args = append(args,
 			"--nssize", "1",
 			"--noprealloc",
 			"--smallfiles",
