@@ -78,8 +78,11 @@ func (dbs *DBServer) start() {
 		"--port", strconv.Itoa(addr.Port),
 		"--storageEngine=" + dbs.engine,
 	}
-	if dbs.engine == "mmapv1" {
-		// default to mmapv1 and add mmapv1-only args (nssize, noprealloc, smallfiles and nojournal)
+
+	switch dbs.engine {
+	case "wiredTiger":
+		args = append(args, "--wiredTigerCacheSizeGB=0.1")
+	case "mmapv1":
 		args = append(args,
 			"--nssize", "1",
 			"--noprealloc",
