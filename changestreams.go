@@ -64,7 +64,7 @@ type ChangeStreamOptions struct {
 var errMissingResumeToken = errors.New("resume token missing from result")
 
 // Watch constructs a new ChangeStream capable of receiving continuing data
-// from the database.
+// from the database, it works at collection level.
 func (c *Collection) Watch(pipeline interface{},
 	options ChangeStreamOptions) (*ChangeStream, error) {
 
@@ -101,7 +101,7 @@ func (c *Collection) Watch(pipeline interface{},
 }
 
 // Watch constructs a new ChangeStream capable of receiving continuing data
-// from the database.
+// from the database, it works at cluster level (change events from all collections across al DBs).
 func (sess *Session) Watch(pipeline interface{},
 	options ChangeStreamOptions) (*ChangeStream, error) {
 
@@ -110,7 +110,7 @@ func (sess *Session) Watch(pipeline interface{},
 	}
 
 	csPipe := constructChangeStreamPipeline(pipeline, options, ChangeDomainCluster)
-	pipe := sess.Pipe(&csPipe)
+	pipe := sess.pipe(&csPipe)
 	if options.MaxAwaitTimeMS > 0 {
 		pipe.SetMaxTime(options.MaxAwaitTimeMS)
 	}
@@ -138,7 +138,7 @@ func (sess *Session) Watch(pipeline interface{},
 }
 
 // Watch constructs a new ChangeStream capable of receiving continuing data
-// from the database.
+// from the database, it works at DB level (change events from all collections in this DB).
 func (db *Database) Watch(pipeline interface{},
 	options ChangeStreamOptions) (*ChangeStream, error) {
 
@@ -147,7 +147,7 @@ func (db *Database) Watch(pipeline interface{},
 	}
 
 	csPipe := constructChangeStreamPipeline(pipeline, options, ChangeDomainDatabase)
-	pipe := db.Pipe(&csPipe)
+	pipe := db.pipe(&csPipe)
 	if options.MaxAwaitTimeMS > 0 {
 		pipe.SetMaxTime(options.MaxAwaitTimeMS)
 	}
@@ -371,9 +371,9 @@ func (changeStream *ChangeStream) resume() error {
 	if changeStream.domainType == ChangeDomainCollection {
 		newPipe = changeStream.collection.Pipe(changeStreamPipeline)
 	} else if changeStream.domainType == ChangeDomainCluster {
-		newPipe = changeStream.session.Pipe(changeStreamPipeline)
+		newPipe = changeStream.session.pipe(changeStreamPipeline)
 	} else if changeStream.domainType == ChangeDomainDatabase {
-		newPipe = changeStream.database.Pipe(changeStreamPipeline)
+		newPipe = changeStream.database.pipe(changeStreamPipeline)
 	}
 
 	changeStream.iter = newPipe.Iter()

@@ -2674,7 +2674,9 @@ func (c *Collection) Pipe(pipeline interface{}) *Pipe {
 	}
 }
 
-func (s *Session) Pipe(pipeline interface{}) *Pipe {
+// pipe prepares a pipe for an aggregation command that will be executed at session level.
+// This is used 4.0 in order to get a changeStream over an entire cluster.
+func (s *Session) pipe(pipeline interface{}) *Pipe {
 	s.m.RLock()
 	batchSize := int(s.queryConfig.op.limit)
 	s.m.RUnlock()
@@ -2687,7 +2689,9 @@ func (s *Session) Pipe(pipeline interface{}) *Pipe {
 	}
 }
 
-func (db *Database) Pipe(pipeline interface{}) *Pipe {
+// pipe prepares a pipe for an aggregation command that will be executed at database level.
+// This is used 4.0 in order to get a changeStream over an entire database.
+func (db *Database) pipe(pipeline interface{}) *Pipe {
 	session := db.Session
 	session.m.RLock()
 	batchSize := int(session.queryConfig.op.limit)
@@ -2757,7 +2761,7 @@ func (p *Pipe) Iter() *Iter {
 	if c != nil {
 		it = c.NewIter(p.session, result.Cursor.FirstBatch, result.Cursor.Id, err)
 	} else {
-		it = clonedSess.NewIter(p.session, result.Cursor.FirstBatch, result.Cursor.Id, result.Cursor.NS, err)
+		it = clonedSess.newIter(p.session, result.Cursor.FirstBatch, result.Cursor.Id, result.Cursor.NS, err)
 	}
 	if p.maxTimeMS > 0 {
 		it.maxTimeMS = p.maxTimeMS
@@ -2842,32 +2846,9 @@ func (c *Collection) NewIter(session *Session, firstBatch []bson.Raw, cursorId i
 	return iter
 }
 
-// NewIter returns a newly created iterator with the provided parameters. Using
-// this method is not recommended unless the desired functionality is not yet
-// exposed via a more convenient interface (Find, Pipe, etc).
-//
-// The optional session parameter associates the lifetime of the returned
-// iterator to an arbitrary session. If nil, the iterator will be bound to c's
-// session.
-//
-// Documents in firstBatch will be individually provided by the returned
-// iterator before documents from cursorId are made available. If cursorId is
-// zero, only the documents in firstBatch are provided.
-//
-// If err is not nil, the iterator's Err method will report it after exhausting
-// documents in firstBatch.
-//
-// NewIter must not be called on a collection in Eventual mode, because the
-// cursor id is associated with the specific server that returned it. The
-// provided session parameter may be in any mode or state, though.
-//
-// The new Iter fetches documents in batches of the server defined default,
-// however this can be changed by setting the session Batch method.
-//
-// When using MongoDB 3.2+ NewIter supports re-using an existing cursor on the
-// server. Ensure the connection has been established (i.e. by calling
-// session.Ping()) before calling NewIter.
-func (s *Session) NewIter(session *Session, firstBatch []bson.Raw, cursorId int64, collectionName string, err error) *Iter {
+// newIter returns a newly created iterator with the provided parameters.
+// This is used while building a 4.0 changestream iterator over a database or cluster.
+func (s *Session) newIter(session *Session, firstBatch []bson.Raw, cursorId int64, collectionName string, err error) *Iter {
 	var server *mongoServer
 	s.m.RLock()
 	socket := s.masterSocket
