@@ -121,7 +121,6 @@ func (s *S) TestStreamsInsert(c *C) {
 		e = changeStream.Close()
 		c.Assert(e, IsNil)
 	}
-
 	//collection level stream
 	testF(coll, true)
 	if s.versionAtLeast(4, 0) {
