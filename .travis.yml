@@ -15,6 +15,7 @@ env:
         - MONGODB=x86_64-ubuntu1404-3.2.17
         - MONGODB=x86_64-ubuntu1404-3.4.10
         - MONGODB=x86_64-ubuntu1404-3.6.0
+        - MONGODB=x86_64-ubuntu1404-4.0.2
 
 install:
 
@@ -33,7 +34,7 @@ install:
 
 before_script:
     - golint  ./... | grep -v 'ID' | cat
-    - go vet github.com/globalsign/mgo/bson github.com/globalsign/mgo/txn github.com/globalsign/mgo 
+    - go vet github.com/globalsign/mgo/bson github.com/globalsign/mgo/txn github.com/globalsign/mgo
     - export NOIPV6=1
     - make startdb
 
