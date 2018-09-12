@@ -447,7 +447,7 @@ func (s *S) TestInsertFindOneNil(c *C) {
 
 	coll := session.DB("mydb").C("mycoll")
 	err = coll.Find(nil).One(nil)
-	c.Assert(err, ErrorMatches, "unauthorized.*|not authorized.*")
+	c.Assert(err, ErrorMatches, "unauthorized.*|not authorized.*|.* requires authentication")
 }
 
 func (s *S) TestInsertFindOneMap(c *C) {
@@ -1160,6 +1160,9 @@ func (s *S) TestCreateCollectionCapped(c *C) {
 }
 
 func (s *S) TestCreateCollectionNoIndex(c *C) {
+	if s.versionAtLeast(4, 0) {
+		c.Skip("can't set autoIndexId:false when creating collections in databases other than the local database in 4.0 and above")
+	}
 	session, err := mgo.Dial("localhost:40001")
 	c.Assert(err, IsNil)
 	defer session.Close()
@@ -3164,7 +3167,9 @@ func (s *S) TestFindForResetsResult(c *C) {
 }
 
 func (s *S) TestFindIterSnapshot(c *C) {
-
+	if s.versionAtLeast(4, 0) {
+		c.Skip("iter snapshot is not supported in 4.0 and above")
+	}
 	session, err := mgo.Dial("localhost:40001")
 	c.Assert(err, IsNil)
 	defer session.Close()
@@ -4948,7 +4953,7 @@ func (s *S) TestFindIterDoneErr(c *C) {
 	ok := iter.Next(&result)
 	c.Assert(iter.Done(), Equals, true)
 	c.Assert(ok, Equals, false)
-	c.Assert(iter.Err(), ErrorMatches, "unauthorized.*|not authorized.*")
+	c.Assert(iter.Err(), ErrorMatches, "unauthorized.*|not authorized.*|.* requires authentication")
 }
 
 func (s *S) TestFindIterDoneNotFound(c *C) {
