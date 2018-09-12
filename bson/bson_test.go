@@ -360,39 +360,6 @@ func (s *S) TestPtrInline(c *C) {
 		c.Assert(outRespectNils.InlineG1, IsNil)
 		c.Assert(outRespectNils, DeepEquals, in)
 	}
-
-	// mixing empty & nil
-	// @TODO
-	/*
-	{
-		in := InlineG2{G2: 108, InlineG1: &InlineG1{}}
-		c.Assert(in.InlineG1, NotNil)
-		c.Assert(in.Final, IsNil)
-
-		data, err := bson.Marshal(in)
-		c.Assert(err, IsNil)
-
-		// default behaviour: no respect to nil values
-		var out InlineG2
-		err = bson.Unmarshal(data, &out)
-		c.Assert(err, IsNil)
-		c.Assert(out.InlineG1, NotNil)
-		c.Assert(out.Final, NotNil)
-		c.Assert(out.G2, Equals, in.G2)
-		c.Assert(out.G1, Equals, 0)
-		c.Assert(out.G0, Equals, 0)
-
-		// respect to nil value
-		var outRespectNils InlineG2
-		bson.SetRespectNilValues(true)
-		err = bson.Unmarshal(data, &outRespectNils)
-		bson.SetRespectNilValues(false)
-		c.Assert(err, IsNil)
-		c.Assert(outRespectNils.InlineG1, NotNil)
-		c.Assert(outRespectNils.Final, IsNil)
-		c.Assert(outRespectNils, DeepEquals, in)
-	}
-	*/
 }
 
 // --------------------------------------------------------------------------
