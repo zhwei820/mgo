@@ -56,6 +56,7 @@ func (dbs *DBServer) SetMonitor(enabled bool) {
 
 // SetWiredTigerCacheSize sets the size (in gigabytes) of the WiredTiger cache
 func (dbs *DBServer) SetWiredTigerCacheSize(sizeGB float64) {
+	dbs.wtCacheSizeGB = sizeGB
 }
 
 func (dbs *DBServer) start() {
