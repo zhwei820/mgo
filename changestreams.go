@@ -17,12 +17,12 @@ const (
 	UpdateLookup = "updateLookup"
 )
 
-type ChangeDomainType int
+type changeDomainType int
 
 const (
-	ChangeDomainCollection ChangeDomainType = iota
-	ChangeDomainDatabase
-	ChangeDomainCluster
+	changeDomainCollection changeDomainType = iota
+	changeDomainDatabase
+	changeDomainCluster
 )
 
 type ChangeStream struct {
@@ -36,7 +36,7 @@ type ChangeStream struct {
 	err            error
 	m              sync.Mutex
 	sessionCopied  bool
-	domainType     ChangeDomainType
+	domainType     changeDomainType
 	session        *Session
 	database       *Database
 }
@@ -72,7 +72,7 @@ func (c *Collection) Watch(pipeline interface{},
 		pipeline = []bson.M{}
 	}
 
-	csPipe := constructChangeStreamPipeline(pipeline, options, ChangeDomainCollection)
+	csPipe := constructChangeStreamPipeline(pipeline, options, changeDomainCollection)
 	pipe := c.Pipe(&csPipe)
 	if options.MaxAwaitTimeMS > 0 {
 		pipe.SetMaxTime(options.MaxAwaitTimeMS)
@@ -96,7 +96,7 @@ func (c *Collection) Watch(pipeline interface{},
 		resumeToken: nil,
 		options:     options,
 		pipeline:    pipeline,
-		domainType:  ChangeDomainCollection,
+		domainType:  changeDomainCollection,
 	}, nil
 }
 
@@ -109,7 +109,7 @@ func (sess *Session) Watch(pipeline interface{},
 		pipeline = []bson.M{}
 	}
 
-	csPipe := constructChangeStreamPipeline(pipeline, options, ChangeDomainCluster)
+	csPipe := constructChangeStreamPipeline(pipeline, options, changeDomainCluster)
 	pipe := sess.pipe(&csPipe)
 	if options.MaxAwaitTimeMS > 0 {
 		pipe.SetMaxTime(options.MaxAwaitTimeMS)
@@ -132,7 +132,7 @@ func (sess *Session) Watch(pipeline interface{},
 		resumeToken: nil,
 		options:     options,
 		pipeline:    pipeline,
-		domainType:  ChangeDomainCluster,
+		domainType:  changeDomainCluster,
 		session:     sess,
 	}, nil
 }
@@ -146,7 +146,7 @@ func (db *Database) Watch(pipeline interface{},
 		pipeline = []bson.M{}
 	}
 
-	csPipe := constructChangeStreamPipeline(pipeline, options, ChangeDomainDatabase)
+	csPipe := constructChangeStreamPipeline(pipeline, options, changeDomainDatabase)
 	pipe := db.pipe(&csPipe)
 	if options.MaxAwaitTimeMS > 0 {
 		pipe.SetMaxTime(options.MaxAwaitTimeMS)
@@ -169,7 +169,7 @@ func (db *Database) Watch(pipeline interface{},
 		resumeToken: nil,
 		options:     options,
 		pipeline:    pipeline,
-		domainType:  ChangeDomainDatabase,
+		domainType:  changeDomainDatabase,
 		session:     db.Session,
 		database:    db,
 	}, nil
@@ -300,7 +300,7 @@ func (changeStream *ChangeStream) Timeout() bool {
 }
 
 func constructChangeStreamPipeline(pipeline interface{},
-	options ChangeStreamOptions, domain ChangeDomainType) interface{} {
+	options ChangeStreamOptions, domain changeDomainType) interface{} {
 	pipelinev := reflect.ValueOf(pipeline)
 
 	// ensure that the pipeline passed in is a slice.
@@ -318,7 +318,7 @@ func constructChangeStreamPipeline(pipeline interface{},
 	if options.ResumeAfter != nil {
 		changeStreamStageOptions["resumeAfter"] = options.ResumeAfter
 	}
-	if domain == ChangeDomainCluster {
+	if domain == changeDomainCluster {
 		changeStreamStageOptions["allChangesForCluster"] = true
 	}
 
@@ -368,11 +368,11 @@ func (changeStream *ChangeStream) resume() error {
 
 	// generate the new iterator with the new connection.
 	var newPipe *Pipe
-	if changeStream.domainType == ChangeDomainCollection {
+	if changeStream.domainType == changeDomainCollection {
 		newPipe = changeStream.collection.Pipe(changeStreamPipeline)
-	} else if changeStream.domainType == ChangeDomainCluster {
+	} else if changeStream.domainType == changeDomainCluster {
 		newPipe = changeStream.session.pipe(changeStreamPipeline)
-	} else if changeStream.domainType == ChangeDomainDatabase {
+	} else if changeStream.domainType == changeDomainDatabase {
 		newPipe = changeStream.database.pipe(changeStreamPipeline)
 	}
 
