@@ -108,8 +108,10 @@ type Session struct {
 	queryConfig      query
 	bypassValidation bool
 	slaveOk          bool
-	SessionID bson.Binary
-	nextTxnNumber int64
+
+	SessionID        bson.Binary
+	nextTxnNumber    int64
+
 	dialInfo *DialInfo
 }
 
