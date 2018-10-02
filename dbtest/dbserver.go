@@ -65,7 +65,7 @@ func (dbs *DBServer) SetWiredTigerCacheSize(sizeGB float64) {
 	dbs.wtCacheSizeGB = sizeGB
 }
 
-func (dbs *DBServer) start() {
+func (dbs *DBServer) start(repl bool) {
 	if dbs.engine == "" {
 		dbs.engine = "mmapv1"
 	}
@@ -98,6 +98,9 @@ func (dbs *DBServer) start() {
 			dbs.wtCacheSizeGB = 0.1
 		}
 		args = append(args, fmt.Sprintf("--wiredTigerCacheSizeGB=%.2f", dbs.wtCacheSizeGB))
+		if repl {
+			args = append(args, "--replSet=rs0")
+		}
 	case "mmapv1":
 		args = append(args,
 			"--nssize", "1",
@@ -136,11 +139,26 @@ func (dbs *DBServer) start() {
 		}
 	}
 
+	// Give the db time to settle.  This seems to matter on docker instances.
+	time.Sleep(1 * time.Second)
+	if repl {
+		dbs.initiateRepl(addr.Port)
+	}
 	if !dbs.disableMonitor {
 		dbs.tomb.Go(dbs.monitor)
 	}
 
 	dbs.Wipe()
+}
+
+func (dbs *DBServer) initiateRepl(port int) {
+	args := []string{
+		"localhost:" + strconv.Itoa(port),
+		"--eval", "rs.initiate()",
+	}
+	shell := exec.Command("mongo", args...)
+	// This should tank on an error.
+	shell.Start()
 }
 
 func (dbs *DBServer) monitor() error {
@@ -199,8 +217,12 @@ func (dbs *DBServer) Stop() {
 //
 // The first Session obtained from a DBServer will start it.
 func (dbs *DBServer) Session() *mgo.Session {
+	return dbs.SessionRepl(false)
+}
+
+func (dbs *DBServer) SessionRepl(repl bool) *mgo.Session {
 	if dbs.server == nil {
-		dbs.start()
+		dbs.start(repl)
 	}
 	if dbs.session == nil {
 		mgo.ResetStats()
