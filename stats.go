@@ -92,7 +92,8 @@ type Stats struct {
 	TotalPoolWaitTime   time.Duration
 	PoolTimeouts        int
 
-	Pingers int
+	PoolShrinkers int
+	Pingers       int
 
 	ServerCreates    int
 	ServerCloses     int
@@ -261,5 +262,22 @@ func (stats *Stats) pinger(delta int) {
 	}
 	statsMutex.Lock()
 	stats.Pingers += delta
+	statsMutex.Unlock()
+}
+
+func (stats *Stats) PoolShrinkerCreated() {
+	stats.poolshrinker(1)
+}
+
+func (stats *Stats) PoolShrinkerExited() {
+	stats.poolshrinker(-1)
+}
+
+func (stats *Stats) poolshrinker(delta int) {
+	if stats == nil {
+		return
+	}
+	statsMutex.Lock()
+	stats.PoolShrinkers += delta
 	statsMutex.Unlock()
 }
