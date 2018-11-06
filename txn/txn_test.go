@@ -867,7 +867,7 @@ func (s *S) TestPurgeMissingPipelineSizeLimit(c *C) {
 	// processing the txn-queue fields of stash documents so insert
 	// the large txn-queue there too to ensure that no longer happens.
 	err = s.sc.Insert(
-		bson.D{{"c", "accounts"}, {"id", 0}},
+		bson.D{{Name: "c", Value: "accounts"}, {Name: "id", Value: 0}},
 		bson.M{"txn-queue": fakeTxnQueue},
 	)
 	c.Assert(err, IsNil)
