@@ -959,6 +959,11 @@ type txnQueue struct {
 
 func (s *S) TestTxnQueueAssertionGrowth(c *C) {
 	txn.SetDebug(false) // too much spam
+	opts := txn.DefaultRunnerOptions()
+	// Disable automatic cleanup of queue, so that we can see the queue
+	// properly cleared on update.
+	opts.AssertionCleanupLength = 0
+	s.runner.SetOptions(opts)
 	err := s.accounts.Insert(M{"_id": 0, "balance": 0})
 	c.Assert(err, IsNil)
 	// Create many assertion only transactions.
